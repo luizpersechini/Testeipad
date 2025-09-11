@@ -203,35 +203,36 @@ def create_dcf_valuation(writer):
             'Tax Rate (%)',
             'Revenue Growth Rate (Years 1-3)',
             'Revenue Growth Rate (Years 4-5)',
+            'Revenue Growth Rate (Years 6-10)',
             'EBITDA Margin (Terminal)',
             'Capex as % of Revenue',
             'Working Capital as % of Revenue',
             'Depreciation as % of Capex'
         ],
-        'Value': [2.5, 12.0, 25.0, 8.0, 5.0, 15.0, 8.0, 10.0, 80.0]
+        'Value': [2.5, 12.0, 25.0, 8.0, 5.0, 3.0, 15.0, 8.0, 10.0, 80.0]
     }
     
-    # DCF Projections (5 years)
-    years = ['2025', '2026', '2027', '2028', '2029', 'Terminal']
+    # DCF Projections (10 years)
+    years = ['2025', '2026', '2027', '2028', '2029', '2030', '2031', '2032', '2033', '2034', 'Terminal']
     dcf_projections = {
         'Year': years,
-        'Revenue': [0, 0, 0, 0, 0, 0],
-        'EBITDA': [0, 0, 0, 0, 0, 0],
-        'EBIT': [0, 0, 0, 0, 0, 0],
-        'Taxes': [0, 0, 0, 0, 0, 0],
-        'NOPAT': [0, 0, 0, 0, 0, 0],
-        'Depreciation': [0, 0, 0, 0, 0, 0],
-        'Capex': [0, 0, 0, 0, 0, 0],
-        'Working Capital Change': [0, 0, 0, 0, 0, 0],
-        'Free Cash Flow': [0, 0, 0, 0, 0, 0],
-        'Discount Factor': [0, 0, 0, 0, 0, 0],
-        'Present Value': [0, 0, 0, 0, 0, 0]
+        'Revenue': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'EBITDA': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'EBIT': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Taxes': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'NOPAT': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Depreciation': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Capex': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Working Capital Change': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Free Cash Flow': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Discount Factor': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'Present Value': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     }
     
     # DCF Summary
     dcf_summary = {
         'Metric': [
-            'Sum of PV of FCF (2025-2029)',
+            'Sum of PV of FCF (2025-2034)',
             'Terminal Value',
             'PV of Terminal Value',
             'Enterprise Value',
@@ -383,7 +384,7 @@ def create_valuation_summary(writer):
         'Weight (%)': [40, 30, 20, 10, 100],
         'Weighted Value (R$ MM)': [0, 0, 0, 0, 0],
         'Notes': [
-            'Based on 5-year projections',
+            'Based on 10-year projections',
             'Based on trading multiples',
             'Based on transaction multiples',
             'Based on asset values',

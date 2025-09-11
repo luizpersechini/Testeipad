@@ -257,21 +257,23 @@ def create_dcf_valuation(writer, annual_data):
             'Tax Rate (%)',
             'Revenue Growth Rate (Years 1-3)',
             'Revenue Growth Rate (Years 4-5)',
+            'Revenue Growth Rate (Years 6-10)',
             'EBITDA Margin (Terminal)',
             'Capex as % of Revenue',
             'Working Capital as % of Revenue',
             'Depreciation as % of Capex'
         ],
-        'Value': [2.5, 12.0, 25.0, 5.0, 3.0, 15.0, 8.0, 10.0, 80.0]
+        'Value': [2.5, 12.0, 25.0, 5.0, 3.0, 2.5, 15.0, 8.0, 10.0, 80.0]
     }
     
-    # DCF Projections (5 years) - starting with annualized 2025 data
-    years = ['2025', '2026', '2027', '2028', '2029', 'Terminal']
+    # DCF Projections (10 years) - starting with annualized 2025 data
+    years = ['2025', '2026', '2027', '2028', '2029', '2030', '2031', '2032', '2033', '2034', 'Terminal']
     
     # Calculate projections
     revenue_2025 = annual_data['Revenue']
     revenue_growth_y1_3 = 0.05  # 5%
     revenue_growth_y4_5 = 0.03  # 3%
+    revenue_growth_y6_10 = 0.025  # 2.5%
     
     revenues = [
         revenue_2025,
@@ -279,7 +281,12 @@ def create_dcf_valuation(writer, annual_data):
         revenue_2025 * (1 + revenue_growth_y1_3) ** 2,
         revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5),
         revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2,
-        revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2 * 1.025  # Terminal
+        revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2 * (1 + revenue_growth_y6_10),
+        revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2 * (1 + revenue_growth_y6_10) ** 2,
+        revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2 * (1 + revenue_growth_y6_10) ** 3,
+        revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2 * (1 + revenue_growth_y6_10) ** 4,
+        revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2 * (1 + revenue_growth_y6_10) ** 5,
+        revenue_2025 * (1 + revenue_growth_y1_3) ** 2 * (1 + revenue_growth_y4_5) ** 2 * (1 + revenue_growth_y6_10) ** 5 * 1.025  # Terminal
     ]
     
     ebitda_margin = 0.15
@@ -302,8 +309,8 @@ def create_dcf_valuation(writer, annual_data):
                       for nopat, capex, wc_change in zip(nopats, capexes, wc_changes)]
     
     wacc = 0.12
-    discount_factors = [1 / (1 + wacc) ** (i + 1) for i in range(5)]
-    discount_factors.append(1 / (1 + wacc) ** 5)  # Terminal year
+    discount_factors = [1 / (1 + wacc) ** (i + 1) for i in range(10)]
+    discount_factors.append(1 / (1 + wacc) ** 10)  # Terminal year
     
     present_values = [fcf * df for fcf, df in zip(free_cash_flows, discount_factors)]
     
@@ -314,7 +321,7 @@ def create_dcf_valuation(writer, annual_data):
         'EBIT': ebits,
         'Taxes': taxes,
         'NOPAT': nopats,
-        'Depreciation': [annual_data['Total_Assets'] * depreciation_rate] * 6,
+        'Depreciation': [annual_data['Total_Assets'] * depreciation_rate] * 11,
         'Capex': capexes,
         'Working Capital Change': wc_changes,
         'Free Cash Flow': free_cash_flows,
@@ -323,16 +330,16 @@ def create_dcf_valuation(writer, annual_data):
     }
     
     # DCF Summary
-    pv_fcf_5yr = sum(present_values[:5])
-    terminal_value = free_cash_flows[5] / (wacc - 0.025)  # 2.5% terminal growth
-    pv_terminal = terminal_value / (1 + wacc) ** 5
-    enterprise_value = pv_fcf_5yr + pv_terminal
+    pv_fcf_10yr = sum(present_values[:10])
+    terminal_value = free_cash_flows[10] / (wacc - 0.025)  # 2.5% terminal growth
+    pv_terminal = terminal_value / (1 + wacc) ** 10
+    enterprise_value = pv_fcf_10yr + pv_terminal
     net_debt = annual_data['Total_Debt'] - annual_data['Cash']
     equity_value = enterprise_value - net_debt
     
     dcf_summary = {
         'Metric': [
-            'Sum of PV of FCF (2025-2029)',
+            'Sum of PV of FCF (2025-2034)',
             'Terminal Value',
             'PV of Terminal Value',
             'Enterprise Value',
@@ -341,7 +348,7 @@ def create_dcf_valuation(writer, annual_data):
             'Shares Outstanding (MM)',
             'Value per Share'
         ],
-        'Value': [pv_fcf_5yr, terminal_value, pv_terminal, enterprise_value, net_debt, equity_value, 10, equity_value / 10]
+        'Value': [pv_fcf_10yr, terminal_value, pv_terminal, enterprise_value, net_debt, equity_value, 10, equity_value / 10]
     }
     
     # Write to Excel
@@ -541,7 +548,7 @@ def create_valuation_summary(writer, annual_data):
         'Weight (%)': [40, 30, 20, 10, 100],
         'Weighted Value (R$ MM)': [dcf_value * 0.4, comp_value * 0.3, precedent_value * 0.2, asset_value * 0.1, 0],
         'Notes': [
-            'Based on 5-year projections',
+            'Based on 10-year projections',
             'Based on trading multiples',
             'Based on transaction multiples',
             'Based on asset values',
@@ -593,7 +600,7 @@ def create_sensitivity_analysis(writer, annual_data):
         for growth in growth_scenarios:
             # Simplified DCF calculation
             terminal_value = base_ebitda * (1 + growth/100) / (wacc/100 - growth/100)
-            dcf_value = terminal_value / (1 + wacc/100) ** 5
+            dcf_value = terminal_value / (1 + wacc/100) ** 10
             
             sensitivity_data.append({
                 'WACC (%)': wacc,
