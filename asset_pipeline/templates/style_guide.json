@@ -1,0 +1,93 @@
+{
+  "project": "Command & Conquer: Tiberian Dawn - Modern Port",
+  "version": "1.0",
+  "visual_style": {
+    "art_direction": "Top-down isometric pixel art with military RTS aesthetic",
+    "inspiration": "Original C&C Tiberian Dawn (1995) updated for modern displays",
+    "perspective": "Isometric top-down, approximately 45-degree viewing angle",
+    "color_palette": {
+      "description": "Muted military tones with strategic color accents",
+      "gdi_primary": "#DAA520",
+      "gdi_secondary": "#6B8E23",
+      "nod_primary": "#B40000",
+      "nod_secondary": "#280000",
+      "tiberium_green": "#00C800",
+      "terrain_base": "#C8A882",
+      "water_blue": "#1E3A5F",
+      "shadow": "rgba(0, 0, 0, 0.3)"
+    },
+    "rendering": {
+      "pixel_density": "Clean pixel art with defined edges",
+      "anti_aliasing": "None - maintain crisp pixel edges",
+      "shadow_style": "Simple offset drop shadow",
+      "outline": "Optional 1px dark outline for readability"
+    }
+  },
+  "asset_specifications": {
+    "units": {
+      "base_size": "48x48 pixels",
+      "facings": 8,
+      "animation_frames": {
+        "idle": 1,
+        "moving": 4,
+        "attacking": 3,
+        "dying": 4
+      },
+      "sprite_sheet_layout": "8 columns (one per facing) x rows per animation"
+    },
+    "infantry": {
+      "base_size": "24x24 pixels",
+      "facings": 8,
+      "animation_frames": {
+        "idle": 1,
+        "walking": 4,
+        "firing": 3,
+        "dying": 5,
+        "prone": 1
+      }
+    },
+    "buildings": {
+      "sizes": {
+        "1x1": "48x48",
+        "2x1": "96x48",
+        "1x2": "48x96",
+        "2x2": "96x96",
+        "3x2": "144x96",
+        "3x3": "144x144"
+      },
+      "animation_frames": {
+        "idle": 1,
+        "producing": 4,
+        "damaged": 1,
+        "destroyed": 4,
+        "selling": 4
+      }
+    },
+    "terrain_tiles": {
+      "base_size": "48x48 pixels",
+      "must_be_tileable": true,
+      "variants_per_type": 4
+    },
+    "effects": {
+      "explosion_frames": 6,
+      "muzzle_flash_frames": 3,
+      "base_size": "32x32 to 96x96"
+    }
+  },
+  "factions": {
+    "gdi": {
+      "full_name": "Global Defense Initiative",
+      "visual_theme": "Western military, NATO-inspired, utilitarian, angular",
+      "color_scheme": "Gold, olive green, tan",
+      "building_style": "Functional military architecture, concrete and steel",
+      "unit_style": "Conventional military vehicles, robust and heavy"
+    },
+    "nod": {
+      "full_name": "Brotherhood of Nod",
+      "visual_theme": "Militant cult, futuristic, aggressive, angular",
+      "color_scheme": "Red, black, crimson",
+      "building_style": "Dark angular architecture, temple-like, alien technology",
+      "unit_style": "Sleek and fast, stealth-oriented, unconventional"
+    }
+  }
+}
