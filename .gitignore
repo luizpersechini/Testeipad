@@ -28,13 +28,13 @@ dist/
 venv/
 .venv/
 
-# Generated assets (large files - tracked via manifest)
-assets/sprites/units/*.png
-assets/sprites/buildings/*.png
-assets/sprites/effects/*.png
-assets/tiles/terrain/*.png
-assets/tiles/overlays/*.png
-assets/ui/*.png
+# Large AI-generated assets (uncomment these lines once AI art replaces placeholders)
+# assets/sprites/units/*.png
+# assets/sprites/buildings/*.png
+# assets/sprites/effects/*.png
+# assets/tiles/terrain/*.png
+# assets/tiles/overlays/*.png
+# assets/ui/*.png
 !assets/**/.gitkeep
 
 # API keys and secrets
