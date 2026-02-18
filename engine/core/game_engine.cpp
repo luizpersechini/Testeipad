@@ -70,6 +70,17 @@ bool GameEngine::init(const GameConfig& config) {
     ai_manager_ = std::make_unique<AIManager>();
     scenario_loader_ = std::make_unique<ScenarioLoader>();
 
+    // Initialize menu system
+    menu_ = std::make_unique<MenuSystem>();
+    menu_->init(config_.window.logical_width, config_.window.logical_height);
+
+    // Initialize bitmap font
+    font_ = std::make_unique<BitmapFont>();
+    font_->init(*renderer_);
+
+    // Initialize sound event registry
+    SoundEventRegistry::instance().init();
+
     // Initialize sidebar UI
     sidebar_->init(config_.window.logical_width, config_.window.logical_height);
 
@@ -171,14 +182,13 @@ void GameEngine::process_input() {
 
         switch (current_state_) {
             case GameState::MainMenu:
-                // Handle menu input
-                if (event.type == InputEvent::Type::KeyDown) {
-                    if (event.key == KeyCode::Enter ||
-                        event.key == KeyCode::Space) {
-                        set_state(GameState::Loading);
-                    }
-                    if (event.key == KeyCode::Escape) {
+                if (menu_) {
+                    menu_->handle_event(event);
+                    if (menu_->should_quit()) {
                         running_ = false;
+                    }
+                    if (menu_->should_start_game()) {
+                        set_state(GameState::Loading);
                     }
                 }
                 break;
@@ -208,6 +218,16 @@ void GameEngine::process_input() {
                 if (event.type == InputEvent::Type::KeyDown) {
                     if (event.key == KeyCode::Escape) {
                         set_state(GameState::Playing);
+                    }
+                }
+                break;
+
+            case GameState::ScenarioComplete:
+                if (event.type == InputEvent::Type::KeyDown) {
+                    if (event.key == KeyCode::Escape) {
+                        // Return to main menu
+                        if (menu_) menu_->reset();
+                        set_state(GameState::MainMenu);
                     }
                 }
                 break;
@@ -243,13 +263,46 @@ void GameEngine::update(float dt) {
     }
 }
 
-void GameEngine::update_main_menu(float /*dt*/) {
-    // Animate menu elements, handle menu logic
+void GameEngine::update_main_menu(float dt) {
+    if (menu_) menu_->update(dt);
 }
 
 void GameEngine::update_loading(float /*dt*/) {
-    // Load the default skirmish scenario
-    current_scenario_ = ScenarioLibrary::skirmish_small();
+    // Determine which scenario to load based on menu selection
+    if (menu_ && menu_->is_campaign_mode()) {
+        // Campaign mode
+        if (menu_->campaign_faction() == HouseType::GDI) {
+            current_scenario_ = ScenarioLibrary::gdi_mission_1();
+        } else {
+            current_scenario_ = ScenarioLibrary::nod_mission_1();
+        }
+    } else if (menu_) {
+        // Skirmish mode
+        auto settings = menu_->get_skirmish_settings();
+        switch (settings.map_size) {
+            case 0: current_scenario_ = ScenarioLibrary::skirmish_small(); break;
+            case 1: current_scenario_ = ScenarioLibrary::skirmish_medium(); break;
+            case 2: current_scenario_ = ScenarioLibrary::skirmish_large(); break;
+            default: current_scenario_ = ScenarioLibrary::skirmish_small(); break;
+        }
+
+        // Override faction and credits from settings
+        if (!current_scenario_.players.empty()) {
+            current_scenario_.players[0].house = settings.player_faction;
+            current_scenario_.players[0].starting_credits = settings.starting_credits;
+        }
+        if (current_scenario_.players.size() > 1) {
+            // Set AI faction to opposite
+            current_scenario_.players[1].house =
+                (settings.player_faction == HouseType::GDI) ?
+                HouseType::Nod : HouseType::GDI;
+            current_scenario_.players[1].starting_credits = settings.starting_credits;
+        }
+
+        config_.fog_of_war = settings.fog_of_war;
+    } else {
+        current_scenario_ = ScenarioLibrary::test_scenario();
+    }
 
     // Connect session to tilemap
     session_->set_tilemap(tilemap_.get());
@@ -258,13 +311,27 @@ void GameEngine::update_loading(float /*dt*/) {
     scenario_loader_->load(current_scenario_, *session_, *tilemap_);
 
     // Setup AI players for non-human houses
+    AIDifficulty diff = AIDifficulty::Normal;
+    if (menu_) {
+        auto settings = menu_->get_skirmish_settings();
+        switch (settings.ai_difficulty) {
+            case 0: diff = AIDifficulty::Easy; break;
+            case 1: diff = AIDifficulty::Normal; break;
+            case 2: diff = AIDifficulty::Hard; break;
+        }
+    }
+
     ai_manager_->clear();
     for (const auto& sp : current_scenario_.players) {
         if (!sp.is_human) {
-            ai_manager_->add_ai(sp.house, AIDifficulty::Normal,
+            ai_manager_->add_ai(sp.house, diff,
                                sp.base_cell_x, sp.base_cell_y);
         }
     }
+
+    // Reset game tick
+    game_tick_ = 0;
+    tick_accumulator_ = 0.0f;
 
     set_state(GameState::Playing);
 }
@@ -307,6 +374,16 @@ void GameEngine::update_playing(float dt) {
     // Update sidebar (continuous for animations)
     if (sidebar_ && session_) {
         sidebar_->update(dt, session_->player_house());
+    }
+
+    // Update command feedback
+    if (input_handler_) {
+        input_handler_->feedback().update(dt);
+    }
+
+    // Periodically clean up dead units from groups
+    if (input_handler_ && session_ && game_tick_ % 30 == 0) {
+        input_handler_->unit_groups().cleanup(session_->entities());
     }
 }
 
@@ -359,18 +436,9 @@ void GameEngine::render() {
 }
 
 void GameEngine::render_main_menu() {
-    int cx = config_.window.logical_width / 2;
-    int cy = config_.window.logical_height / 2;
-
-    renderer_->draw_text("COMMAND & CONQUER", cx - 100, cy - 60,
-                         Color::Yellow(), 20);
-    renderer_->draw_text("TIBERIAN DAWN", cx - 75, cy - 30,
-                         Color::GDI(), 16);
-    renderer_->draw_text("Modern Port", cx - 50, cy, Color::White(), 12);
-    renderer_->draw_text("Press ENTER to start", cx - 80, cy + 40,
-                         Color::White(), 10);
-    renderer_->draw_text("Press ESC to quit", cx - 65, cy + 60,
-                         Color::White(), 10);
+    if (menu_) {
+        menu_->render(*renderer_);
+    }
 }
 
 void GameEngine::render_loading() {
@@ -411,7 +479,12 @@ void GameEngine::render_playing() {
         session_->entities().render_health_bars(*renderer_, viewport);
     }
 
-    // 5. Drag selection rectangle
+    // 5. Command feedback markers
+    if (input_handler_) {
+        input_handler_->feedback().render(*renderer_, viewport);
+    }
+
+    // 6. Drag selection rectangle
     if (input_handler_ && input_handler_->is_dragging()) {
         Rect sel = input_handler_->get_selection_rect();
         renderer_->draw_rect(sel, Color(0, 255, 0, 180));

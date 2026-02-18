@@ -4,6 +4,7 @@
  */
 
 #include "sidebar.h"
+#include "commands.h"
 #include <algorithm>
 #include <cmath>
 
@@ -421,6 +422,13 @@ bool GameInputHandler::handle_event(const InputEvent& event,
             return false;
 
         case InputEvent::Type::KeyDown:
+            // Handle number keys for unit groups
+            if (event.key >= KeyCode::Num0 && event.key <= KeyCode::Num9) {
+                int group = static_cast<int>(event.key) - static_cast<int>(KeyCode::Num0);
+                handle_group_key(group, event.ctrl, session);
+                return true;
+            }
+
             handle_key(event.key, session);
 
             // Arrow key scrolling
@@ -546,33 +554,101 @@ void GameInputHandler::handle_right_click(int mx, int my,
 
     if (enemy_target != INVALID_ENTITY) {
         session.command_attack(selected, enemy_target);
+        command_feedback_.add_attack_marker(
+            static_cast<float>(world.x), static_cast<float>(world.y));
     } else {
         session.command_move(selected, world.x, world.y);
+        command_feedback_.add_move_marker(
+            static_cast<float>(world.x), static_cast<float>(world.y));
     }
 }
 
 void GameInputHandler::handle_key(KeyCode key, GameSession& session) {
+    auto selected = session.entities().get_selected();
+
     switch (key) {
         case KeyCode::S:
-            // S key: stop selected units
-            if (/* TODO: check if no modifier */ false) {
-                auto selected = session.entities().get_selected();
+            // S: stop selected units (only when not scrolling)
+            if (!scroll_down_) {
                 session.command_stop(selected);
             }
             break;
 
         case KeyCode::H:
             // H: harvest
-            {
-                auto selected = session.entities().get_selected();
-                for (EntityID id : selected) {
-                    session.command_harvest(id);
+            for (EntityID id : selected) {
+                session.command_harvest(id);
+            }
+            break;
+
+        case KeyCode::D:
+            // D: deploy MCV
+            for (EntityID id : selected) {
+                Unit* u = session.entities().get_unit(id);
+                if (u && u->type == UnitType::MCV && u->is_alive()) {
+                    if (MCVDeployment::can_deploy(*u, session.tilemap())) {
+                        MCVDeployment::deploy(*u, session, session.tilemap());
+                        command_feedback_.add_deploy_marker(u->x, u->y);
+                        break;
+                    }
                 }
             }
             break;
 
+        case KeyCode::X:
+            // X: scatter/spread units
+            // TODO: scatter logic
+            break;
+
+        case KeyCode::G:
+            // G: guard area
+            for (EntityID id : selected) {
+                if (Unit* u = session.entities().get_unit(id)) {
+                    u->mission = MissionType::GuardArea;
+                }
+            }
+            break;
+
+        // Number keys: Ctrl+N = assign group, N = recall group
+        case KeyCode::Num1: case KeyCode::Num2: case KeyCode::Num3:
+        case KeyCode::Num4: case KeyCode::Num5: case KeyCode::Num6:
+        case KeyCode::Num7: case KeyCode::Num8: case KeyCode::Num9:
+        case KeyCode::Num0:
+        {
+            int group = static_cast<int>(key) - static_cast<int>(KeyCode::Num0);
+            // Note: ctrl state would need to be tracked via events
+            // For now, check if we have a selection to assign
+            // The ctrl modifier is checked in handle_event
+            break;
+        }
+
         default:
             break;
+    }
+}
+
+void GameInputHandler::handle_group_key(int group_num, bool ctrl_held,
+                                         GameSession& session) {
+    if (ctrl_held) {
+        // Ctrl+N: assign current selection to group
+        auto selected = session.entities().get_selected();
+        if (!selected.empty()) {
+            unit_groups_.assign_group(group_num, selected);
+        }
+    } else {
+        // N: recall group
+        auto group = unit_groups_.recall_group(group_num);
+        if (!group.empty()) {
+            session.entities().clear_selection();
+            for (EntityID id : group) {
+                if (Unit* u = session.entities().get_unit(id)) {
+                    if (u->is_alive()) u->selected = true;
+                }
+                if (Infantry* i = session.entities().get_infantry(id)) {
+                    if (i->is_alive()) i->selected = true;
+                }
+            }
+        }
     }
 }
 

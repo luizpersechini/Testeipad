@@ -18,6 +18,7 @@
 #include "../core/platform.h"
 #include "game_types.h"
 #include "house.h"
+#include "commands.h"
 #include <vector>
 #include <functional>
 
@@ -151,6 +152,8 @@ private:
     void handle_right_click(int mx, int my, GameSession& session,
                             Renderer& renderer);
     void handle_key(KeyCode key, GameSession& session);
+    void handle_group_key(int group_num, bool ctrl_held,
+                          GameSession& session);
     void update_scroll(float dt);
 
     // Screen dimensions
@@ -184,6 +187,17 @@ private:
     BuildingType placing_type_ = BuildingType::None;
     int placement_cell_x_ = -1;
     int placement_cell_y_ = -1;
+
+    // Unit groups
+    UnitGroupManager unit_groups_;
+
+    // Command feedback
+    CommandFeedback command_feedback_;
+
+public:
+    // Access to subsystems
+    UnitGroupManager& unit_groups() { return unit_groups_; }
+    CommandFeedback& feedback() { return command_feedback_; }
 };
 
 } // namespace CnC

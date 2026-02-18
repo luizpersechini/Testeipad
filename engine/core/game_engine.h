@@ -17,6 +17,9 @@
 #include "../game/sidebar.h"
 #include "../game/scenario.h"
 #include "../game/ai_player.h"
+#include "../game/commands.h"
+#include "../ui/menu.h"
+#include "../ui/bitmap_font.h"
 #include <memory>
 #include <functional>
 #include <unordered_map>
@@ -135,6 +138,10 @@ private:
     std::unique_ptr<GameInputHandler> input_handler_;
     std::unique_ptr<AIManager> ai_manager_;
     std::unique_ptr<ScenarioLoader> scenario_loader_;
+
+    // UI systems
+    std::unique_ptr<MenuSystem> menu_;
+    std::unique_ptr<BitmapFont> font_;
 
     // Current scenario
     ScenarioDef current_scenario_;

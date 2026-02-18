@@ -17,8 +17,11 @@ set(ENGINE_SOURCES
     engine/game/sidebar.cpp
     engine/game/scenario.cpp
     engine/game/ai_player.cpp
+    engine/game/commands.cpp
     engine/graphics/sprite.cpp
     engine/graphics/tilemap.cpp
+    engine/ui/menu.cpp
+    engine/ui/bitmap_font.cpp
 )
 
 set(ENGINE_HEADERS
@@ -32,6 +35,9 @@ set(ENGINE_HEADERS
     engine/game/sidebar.h
     engine/game/scenario.h
     engine/game/ai_player.h
+    engine/game/commands.h
+    engine/ui/menu.h
+    engine/ui/bitmap_font.h
 )
 
 # Platform-specific sources
