@@ -1,5 +1,7 @@
 # Build outputs
 build/
+build_test/
+cmake-build-*/
 bin/
 obj/
 *.o
@@ -8,6 +10,9 @@ obj/
 *.dylib
 *.dll
 *.exe
+
+# Test output (generated images)
+test_output/
 
 # IDE files
 .vscode/
