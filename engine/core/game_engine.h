@@ -12,18 +12,17 @@
 #include "../graphics/sprite.h"
 #include "../graphics/tilemap.h"
 #include "../game/game_types.h"
+#include "../game/unit.h"
+#include "../game/house.h"
+#include "../game/sidebar.h"
+#include "../game/scenario.h"
+#include "../game/ai_player.h"
 #include <memory>
 #include <functional>
 #include <unordered_map>
 #include <string>
 
 namespace CnC {
-
-// Forward declarations
-class GameMap;
-class GameSession;
-class Sidebar;
-class UIManager;
 
 // ============================================================
 // Game State Machine
@@ -123,12 +122,22 @@ private:
     // Timing
     void update_timing();
 
-    // Subsystems
+    // Core subsystems
     std::unique_ptr<Platform> platform_;
     std::unique_ptr<Renderer> renderer_;
     std::unique_ptr<AudioSystem> audio_;
     std::unique_ptr<SpriteManager> sprites_;
     std::unique_ptr<TileMap> tilemap_;
+
+    // Game systems
+    std::unique_ptr<GameSession> session_;
+    std::unique_ptr<Sidebar> sidebar_;
+    std::unique_ptr<GameInputHandler> input_handler_;
+    std::unique_ptr<AIManager> ai_manager_;
+    std::unique_ptr<ScenarioLoader> scenario_loader_;
+
+    // Current scenario
+    ScenarioDef current_scenario_;
 
     // Game state
     GameState current_state_ = GameState::Startup;

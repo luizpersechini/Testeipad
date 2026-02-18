@@ -12,6 +12,13 @@ option(BUILD_TESTS "Build unit tests" OFF)
 set(ENGINE_SOURCES
     engine/core/game_engine.cpp
     engine/game/game_data.cpp
+    engine/game/unit.cpp
+    engine/game/house.cpp
+    engine/game/sidebar.cpp
+    engine/game/scenario.cpp
+    engine/game/ai_player.cpp
+    engine/graphics/sprite.cpp
+    engine/graphics/tilemap.cpp
 )
 
 set(ENGINE_HEADERS
@@ -21,6 +28,10 @@ set(ENGINE_HEADERS
     engine/graphics/tilemap.h
     engine/game/game_types.h
     engine/game/unit.h
+    engine/game/house.h
+    engine/game/sidebar.h
+    engine/game/scenario.h
+    engine/game/ai_player.h
 )
 
 # Platform-specific sources

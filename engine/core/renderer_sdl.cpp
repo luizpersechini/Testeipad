@@ -252,6 +252,15 @@ public:
         return Point(world_x - camera_x_, world_y - camera_y_);
     }
 
+    void set_clip_rect(const Rect& rect) override {
+        SDL_Rect clip = {rect.x, rect.y, rect.w, rect.h};
+        SDL_RenderSetClipRect(sdl_renderer_, &clip);
+    }
+
+    void clear_clip_rect() override {
+        SDL_RenderSetClipRect(sdl_renderer_, nullptr);
+    }
+
     void set_logical_size(int width, int height) override {
         SDL_RenderSetLogicalSize(sdl_renderer_, width, height);
     }

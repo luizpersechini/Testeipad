@@ -63,6 +63,31 @@ bool GameEngine::init(const GameConfig& config) {
     // Initialize game data registry
     GameDataRegistry::instance().init();
 
+    // Initialize game systems
+    session_ = std::make_unique<GameSession>();
+    sidebar_ = std::make_unique<Sidebar>();
+    input_handler_ = std::make_unique<GameInputHandler>();
+    ai_manager_ = std::make_unique<AIManager>();
+    scenario_loader_ = std::make_unique<ScenarioLoader>();
+
+    // Initialize sidebar UI
+    sidebar_->init(config_.window.logical_width, config_.window.logical_height);
+
+    // Initialize input handler
+    input_handler_->init(config_.window.logical_width,
+                         config_.window.logical_height,
+                         sidebar_->get_width());
+
+    // Wire up sidebar build callbacks to the session
+    sidebar_->set_build_callback(
+        [this](ProductionCategory cat, int type_index) {
+            if (session_) {
+                House& player = session_->player_house();
+                player.start_building(cat, type_index);
+            }
+        }
+    );
+
     // Initialize timing
     last_tick_ = platform_->get_ticks_ms();
     fps_timer_ = last_tick_;
@@ -99,6 +124,12 @@ void GameEngine::run() {
 
 void GameEngine::shutdown() {
     running_ = false;
+
+    ai_manager_.reset();
+    session_.reset();
+    sidebar_.reset();
+    input_handler_.reset();
+    scenario_loader_.reset();
 
     if (tilemap_) tilemap_->shutdown();
     if (sprites_) sprites_->shutdown();
@@ -153,10 +184,22 @@ void GameEngine::process_input() {
                 break;
 
             case GameState::Playing:
-                // Handle gameplay input (scrolling, selection, commands)
+                // Let the input handler process gameplay events first
+                if (input_handler_ && session_ && sidebar_) {
+                    if (input_handler_->handle_event(event, *session_,
+                                                      *sidebar_, *renderer_)) {
+                        break; // Event consumed by gameplay handler
+                    }
+                }
+                // Unhandled gameplay keys
                 if (event.type == InputEvent::Type::KeyDown) {
                     if (event.key == KeyCode::Escape) {
-                        set_state(GameState::Paused);
+                        // Cancel building placement first, or pause
+                        if (input_handler_ && input_handler_->is_placing_building()) {
+                            input_handler_->cancel_building_placement();
+                        } else {
+                            set_state(GameState::Paused);
+                        }
                     }
                 }
                 break;
@@ -205,13 +248,33 @@ void GameEngine::update_main_menu(float /*dt*/) {
 }
 
 void GameEngine::update_loading(float /*dt*/) {
-    // Load scenario, generate map, load assets
-    // For now, transition directly to playing with a test map
-    tilemap_->generate_test_map(32, 32);
+    // Load the default skirmish scenario
+    current_scenario_ = ScenarioLibrary::skirmish_small();
+
+    // Connect session to tilemap
+    session_->set_tilemap(tilemap_.get());
+
+    // Load the scenario into the game
+    scenario_loader_->load(current_scenario_, *session_, *tilemap_);
+
+    // Setup AI players for non-human houses
+    ai_manager_->clear();
+    for (const auto& sp : current_scenario_.players) {
+        if (!sp.is_human) {
+            ai_manager_->add_ai(sp.house, AIDifficulty::Normal,
+                               sp.base_cell_x, sp.base_cell_y);
+        }
+    }
+
     set_state(GameState::Playing);
 }
 
 void GameEngine::update_playing(float dt) {
+    // Update input handler (camera scrolling, edge scroll)
+    if (input_handler_) {
+        input_handler_->update(dt, *renderer_);
+    }
+
     // Accumulate time for fixed game tick updates
     // Original C&C runs game logic at ~15 ticks per second
     tick_accumulator_ += dt;
@@ -220,18 +283,30 @@ void GameEngine::update_playing(float dt) {
         tick_accumulator_ -= GAME_TICK_RATE;
         game_tick_++;
 
-        // Fixed-rate game logic updates:
-        // - Unit movement and pathfinding
-        // - Combat resolution
-        // - AI decisions
-        // - Tiberium growth
-        // - Building production
-        // - Trigger/event checks
+        // Update game session (entities, combat, economy, production)
+        if (session_) {
+            session_->update(GAME_TICK_RATE);
+        }
+
+        // Update AI players
+        if (ai_manager_ && session_) {
+            ai_manager_->update(GAME_TICK_RATE, *session_, *tilemap_);
+        }
 
         // Tiberium growth happens every ~300 ticks
         if (game_tick_ % 300 == 0) {
             tilemap_->spread_tiberium();
         }
+
+        // Check for game over
+        if (session_ && session_->is_game_over()) {
+            set_state(GameState::ScenarioComplete);
+        }
+    }
+
+    // Update sidebar (continuous for animations)
+    if (sidebar_ && session_) {
+        sidebar_->update(dt, session_->player_house());
     }
 }
 
@@ -253,6 +328,23 @@ void GameEngine::render() {
             render_playing();
             break;
 
+        case GameState::ScenarioComplete:
+            render_playing();
+            // Victory/defeat overlay
+            if (session_) {
+                int cx = config_.window.logical_width / 2;
+                int cy = config_.window.logical_height / 2;
+                bool won = session_->winner() ==
+                           session_->player_house().type();
+                renderer_->draw_text(
+                    won ? "MISSION ACCOMPLISHED" : "MISSION FAILED",
+                    cx - 90, cy - 10,
+                    won ? Color::GDI() : Color::Nod(), 18);
+                renderer_->draw_text("Press ESC to return to menu",
+                    cx - 100, cy + 20, Color::White(), 10);
+            }
+            break;
+
         default:
             break;
     }
@@ -267,7 +359,6 @@ void GameEngine::render() {
 }
 
 void GameEngine::render_main_menu() {
-    // Render main menu
     int cx = config_.window.logical_width / 2;
     int cy = config_.window.logical_height / 2;
 
@@ -291,37 +382,70 @@ void GameEngine::render_loading() {
 
 void GameEngine::render_playing() {
     // Calculate viewport based on camera position
-    Rect viewport(0, 0,
-                  config_.window.logical_width,
-                  config_.window.logical_height);
+    int cam_x = input_handler_ ? input_handler_->camera_x() : 0;
+    int cam_y = input_handler_ ? input_handler_->camera_y() : 0;
+    int game_w = config_.window.logical_width - (sidebar_ ? sidebar_->get_width() : 0);
+    int game_h = config_.window.logical_height;
 
-    // Render layers in order:
+    Rect viewport(cam_x, cam_y, game_w, game_h);
+
+    // Set clipping to game area (exclude sidebar)
+    renderer_->set_clip_rect(Rect(0, 0, game_w, game_h));
+
     // 1. Terrain tiles
     tilemap_->render(*renderer_, viewport);
 
-    // 2. Building sprites (below units)
-    // 3. Infantry and vehicle sprites
-    // 4. Aircraft sprites
-    // 5. Projectiles and effects
-    // 6. Fog of war overlay
-    tilemap_->render_fog(*renderer_, viewport);
+    // 2. Buildings (below units, sorted by Y)
+    if (session_) {
+        session_->entities().render(*renderer_, viewport);
+    }
 
-    // 7. Sidebar UI
-    // 8. Selection indicators
-    // 9. Minimap
+    // 3. Fog of war overlay
+    if (config_.fog_of_war) {
+        tilemap_->render_fog(*renderer_, viewport);
+    }
 
-    // Draw minimap in bottom-right corner
-    Rect minimap_rect(config_.window.logical_width - 130,
-                      config_.window.logical_height - 130,
-                      120, 120);
-    renderer_->draw_rect_filled(minimap_rect, Color(0, 0, 0, 180));
-    tilemap_->render_minimap(*renderer_, minimap_rect);
-    renderer_->draw_rect(minimap_rect, Color::White());
+    // 4. Selection boxes and health bars
+    if (session_) {
+        session_->entities().render_selection_boxes(*renderer_, viewport);
+        session_->entities().render_health_bars(*renderer_, viewport);
+    }
 
+    // 5. Drag selection rectangle
+    if (input_handler_ && input_handler_->is_dragging()) {
+        Rect sel = input_handler_->get_selection_rect();
+        renderer_->draw_rect(sel, Color(0, 255, 0, 180));
+    }
+
+    // Clear clipping for sidebar
+    renderer_->set_clip_rect(Rect(0, 0, config_.window.logical_width,
+                                  config_.window.logical_height));
+
+    // 6. Sidebar UI
+    if (sidebar_ && session_) {
+        sidebar_->render(*renderer_, session_->player_house(), tilemap_.get());
+    }
+
+    // 7. Game info overlay
+    if (session_) {
+        std::string tick_str = "Tick: " + std::to_string(game_tick_);
+        renderer_->draw_text(tick_str, game_w - 80, game_h - 16,
+                            Color::White(), 8);
+    }
+
+    // Pause overlay
     if (current_state_ == GameState::Paused) {
+        // Dim overlay
+        Rect full(0, 0, config_.window.logical_width,
+                  config_.window.logical_height);
+        renderer_->draw_rect_filled(full, Color(0, 0, 0, 120));
         renderer_->draw_text("PAUSED", config_.window.logical_width / 2 - 30,
-                            config_.window.logical_height / 2,
+                            config_.window.logical_height / 2 - 10,
                             Color::Yellow(), 16);
+        renderer_->draw_text("Press ESC to resume",
+                            config_.window.logical_width / 2 - 65,
+                            config_.window.logical_height / 2 + 15,
+                            Color::White(), 10);
     }
 }
 

@@ -236,6 +236,10 @@ public:
     virtual Point screen_to_world(int screen_x, int screen_y) = 0;
     virtual Point world_to_screen(int world_x, int world_y) = 0;
 
+    // Clipping
+    virtual void set_clip_rect(const Rect& rect) = 0;
+    virtual void clear_clip_rect() = 0;
+
     // Render target scaling
     virtual void set_logical_size(int width, int height) = 0;
 
