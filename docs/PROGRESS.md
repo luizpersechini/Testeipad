@@ -14,3 +14,10 @@ tiberium fields (one per start + contested center). Tests: 14 pass (8 new).
 Notes: trees currently block all ground units; original lets infantry through — handle in
 M2.3 pathfinding. Tiberium field *stages* aren't mirror-identical (extent is); acceptable
 since harvest value differences are small — revisit if fairness complaints.
+
+## 2026-07-06 — M1.2
+Did: render/assets.js — sheet metadata + pure frame math (vehicle/infantry/building/
+effect/tiberium lookups) with DOM loading isolated in loadAssets(); every image can be
+null and callers must rect-fallback. Tests: 20 pass (6 new).
+Notes: mammoth sheet frames are clipped (authored 40px, packed at 32px stride) —
+regenerate sheet with 40px stride later; harmless placeholder for now.
