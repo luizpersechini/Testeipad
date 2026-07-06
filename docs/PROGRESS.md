@@ -21,3 +21,10 @@ effect/tiberium lookups) with DOM loading isolated in loadAssets(); every image 
 null and callers must rect-fallback. Tests: 20 pass (6 new).
 Notes: mammoth sheet frames are clipped (authored 40px, packed at 32px stride) —
 regenerate sheet with 40px stride later; harmless placeholder for now.
+
+## 2026-07-06 — M1.3
+Did: render/camera.js (pure: clamp/move/center/coord conversions/visibleCells),
+render/draw_map.js (terrain tiles w/ deterministic per-cell variants, tiberium overlays,
+rect fallbacks), main.js rewired: real world render, arrows/WASD + edge pan scrolling.
+Tests: 26 pass (6 new).
+Notes: no dedicated tree tile art — using tinted 'rough' tile as stand-in.
