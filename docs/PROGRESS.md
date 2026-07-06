@@ -69,3 +69,12 @@ offsets exposed for smooth rendering. Tests: 59 pass (7 new incl. iron-rule-3
 determinism test and exact 48-tick arrival).
 Notes: collision resolution is plan-time avoid + re-path; no push/yield mechanics yet.
 Two-units-same-spot settles within 3 cells — fine until formations (post-MVP).
+
+## 2026-07-06 — M2.5
+Did: input.js (click/drag-box select with pure pick/rect helpers, right-click move,
+S stop, minimap jump moved here), render/draw_entities.js (sheet sprites by facing +
+walk frame, faction-colored fallback with facing tick, selection brackets, health
+bars, drag box), main.js spawns starter forces for both factions and drains the
+command queue into gameTick. Tests: 62 pass (3 new incl. headless playable check).
+Notes: WASD scroll removed (S = stop hotkey per original); arrows + edge pan remain.
+Game is now genuinely interactive in the browser: select and order units around.

@@ -112,7 +112,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M2.2 `sim/data/units.js` + `infantry.js`: port stats (cost, speed, hp, armor class, sight, weapon id) for MVP roster — GDI: minigunner, grenadier, rocket soldier, humvee, medium tank, mammoth, harvester, MCV; Nod: rifle, rocket, flamer, buggy, recon bike, light tank, stealth tank, harvester, MCV. Source: `engine/game/game_data.cpp` (already transcribed from originals). Tests: table sanity (every unit has weapon or is unarmed-by-design, costs > 0).
 - [x] M2.3 `sim/path.js`: A* with terrain costs + occupancy; straight-line fast path; path caching per move order. Tests: reaches goal, routes around obstacles, no path ⇒ closest reachable.
 - [x] M2.4 Movement in `tick()`: units follow paths with per-type speed, rotate facing toward heading, occupy/release cells. Test: unit ordered A→B arrives in expected tick count, deterministic.
-- [ ] M2.5 `input.js` + `render/draw_entities.js`: click select, drag-box select, right-click move; draw units from sheets with correct facing frame, selection brackets, health bars. **Playable check: order tanks around the map.**
+- [x] M2.5 `input.js` + `render/draw_entities.js`: click select, drag-box select, right-click move; draw units from sheets with correct facing frame, selection brackets, health bars. **Playable check: order tanks around the map.**
 
 ### M3 — Combat
 - [ ] M3.1 `sim/data/weapons.js`: weapons (damage, ROF, range, projectile speed) + warhead-vs-armor % table from `COMBAT.CPP` / `game_data.cpp`. Tests: table complete for all referenced weapons.
