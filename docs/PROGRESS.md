@@ -51,3 +51,12 @@ resolved by M3.1 weapons.js. Tests: 44 pass (5 new: table sanity + roster + orig
 cost relationships).
 Notes: E1/E3 marked faction 'both' per original TD rules (plan said 'nod rifle' — same
 unit). Added APC/MLRS/artillery/flame_tank beyond MVP since data was at hand.
+
+## 2026-07-06 — M2.3
+Did: sim/path.js — A* with binary heap (deterministic tie-break by insertion seq),
+octile heuristic, 141/100 diagonal cost, no corner cutting, trees admit infantry only,
+occupied cells blocked at plan time except the goal (approach handled by mover),
+unreachable goal -> partial path to closest reachable cell, 4096-expansion guard.
+Tests: 52 pass (8 new).
+Notes: plan mentioned "path caching per move order" — deferred to M2.4 movement where
+re-path triggers live; caching without movement is untestable.
