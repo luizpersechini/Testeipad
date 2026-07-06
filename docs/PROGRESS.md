@@ -78,3 +78,12 @@ bars, drag box), main.js spawns starter forces for both factions and drains the
 command queue into gameTick. Tests: 62 pass (3 new incl. headless playable check).
 Notes: WASD scroll removed (S = stop hotkey per original); arrows + edge pan remain.
 Game is now genuinely interactive in the browser: select and order units around.
+
+## 2026-07-06 — M3.1
+Did: sim/data/weapons.js — 16 weapons + 6 warheads transcribed verbatim from
+original_source/CONST.CPP Weapons[]/Warheads[] with bullet->warhead mapping from
+BBDATA.CPP (better source than the C++ port's approximations). modifyDamage()
+replicates COMBAT.CPP integer math (damage * mod >> 8, min 1). Tests: 68 pass (6 new).
+Notes: earlier unit tables (M2.2) carried approximated damage in game_data.cpp;
+weapons.js now holds the true original numbers and unit weapon ids all resolve.
+Projectile speeds are invented (original uses MPH per bullet class) — tune in M3.3.
