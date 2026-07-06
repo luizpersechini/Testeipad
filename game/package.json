@@ -1,0 +1,7 @@
+{
+  "name": "cnc-td-web",
+  "private": true,
+  "type": "module",
+  "description": "C&C: Tiberian Dawn web port. No dependencies, no build step. Play: open index.html. Test: node --test game/test/*.test.js",
+  "license": "GPL-3.0"
+}
