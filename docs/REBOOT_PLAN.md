@@ -102,7 +102,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M0.1 Create `game/` skeleton: index.html, main.js, sim/constants.js, sim/rng.js, one passing node test.
 
 ### M1 — World & rendering
-- [ ] M1.1 `sim/world.js`: 64×64 cell grid; terrain enum (clear/rock/tree/water); tiberium per cell (0–11 growth stages like original OVERLAY); `createWorld(seed)` generates a symmetric skirmish map. Tests: dimensions, determinism, passability.
+- [x] M1.1 `sim/world.js`: 64×64 cell grid; terrain enum (clear/rock/tree/water); tiberium per cell (0–11 growth stages like original OVERLAY); `createWorld(seed)` generates a symmetric skirmish map. Tests: dimensions, determinism, passability.
 - [ ] M1.2 `render/assets.js`: load `../assets/sheets/*.png` + `../assets/tiles/**` into a registry with named frame lookups (sheet, frameW/H, index math for facing/frame). Handle load failure with colored-rect fallback so the game never white-screens.
 - [ ] M1.3 `render/camera.js` + `render/draw_map.js`: draw terrain + tiberium to canvas; arrow keys / edge pan scroll. `main.js` wires rAF render + fixed 15 t/s sim accumulator. **Playable check: opening index.html shows a scrollable map.**
 - [ ] M1.4 Minimap in sidebar area showing terrain + camera rectangle; click minimap to jump camera.
