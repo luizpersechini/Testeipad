@@ -28,3 +28,10 @@ render/draw_map.js (terrain tiles w/ deterministic per-cell variants, tiberium o
 rect fallbacks), main.js rewired: real world render, arrows/WASD + edge pan scrolling.
 Tests: 26 pass (6 new).
 Notes: no dedicated tree tile art — using tinted 'rough' tile as stand-in.
+
+## 2026-07-06 — M1.4
+Did: render/minimap.js (pure layout + hit-test + coordinate mapping, drawn terrain/
+tiberium/camera-rect), sidebar strip reserved in main.js (camera view now 1080px wide),
+click minimap jumps camera. Tests: 30 pass (4 new).
+Notes: minimap redraws all 4096 cells per frame; cache to offscreen canvas if profiling
+flags it (M9.3).

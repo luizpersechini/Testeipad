@@ -8,14 +8,19 @@ import {
   createCamera, moveCamera, centerCameraOn, clampCamera,
 } from './render/camera.js';
 import { drawMap } from './render/draw_map.js';
+import {
+  createMinimapLayout, pointInMinimap, minimapToWorldPx, drawMinimap,
+} from './render/minimap.js';
 import { TILE } from './sim/constants.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false; // pixel art
 
+const SIDEBAR_W = 200;
 const world = createWorld(42);
-const cam = createCamera(canvas.width, canvas.height, world.w, world.h);
+const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, world.w, world.h);
+const minimap = createMinimapLayout(canvas.width, SIDEBAR_W, world);
 centerCameraOn(cam, world.startPositions[0].x * TILE, world.startPositions[0].y * TILE);
 
 const SCROLL_SPEED = 12; // px per frame while a key is held
@@ -39,6 +44,15 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseleave', () => {
   mouseX = -1;
   mouseY = -1;
+});
+canvas.addEventListener('mousedown', (e) => {
+  const r = canvas.getBoundingClientRect();
+  const px = e.clientX - r.left;
+  const py = e.clientY - r.top;
+  if (pointInMinimap(minimap, px, py)) {
+    const w = minimapToWorldPx(minimap, world, px, py);
+    centerCameraOn(cam, w.x, w.y);
+  }
 });
 
 function updateCamera() {
@@ -78,11 +92,16 @@ function render() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawMap(ctx, world, cam, registry);
 
+  // Sidebar panel.
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fillRect(canvas.width - SIDEBAR_W, 0, SIDEBAR_W, canvas.height);
+  drawMinimap(ctx, minimap, world, cam);
+
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, 0, 360, 30);
   ctx.fillStyle = '#c8ffc8';
   ctx.font = '13px monospace';
-  ctx.fillText(`tick ${tick}  cam ${cam.x | 0},${cam.y | 0}  arrows/WASD or screen edge to scroll`, 8, 19);
+  ctx.fillText(`tick ${tick}  cam ${cam.x | 0},${cam.y | 0}  scroll: arrows/WASD/edge; click minimap`, 8, 19);
 }
 
 function frame(now) {
