@@ -60,3 +60,12 @@ unreachable goal -> partial path to closest reachable cell, 4096-expansion guard
 Tests: 52 pass (8 new).
 Notes: plan mentioned "path caching per move order" — deferred to M2.4 movement where
 re-path triggers live; caching without movement is untestable.
+
+## 2026-07-06 — M2.4
+Did: sim/game.js (createGame/gameTick) + sim/commands.js (move/stop). Integer-math
+movement: speed*25 progress/tick vs step cost 1000/1410, turn-in-place (4 facings/tick,
+drives within 4 of desired), blocked -> cooldown re-path (max 3) -> idle, sub-cell
+offsets exposed for smooth rendering. Tests: 59 pass (7 new incl. iron-rule-3
+determinism test and exact 48-tick arrival).
+Notes: collision resolution is plan-time avoid + re-path; no push/yield mechanics yet.
+Two-units-same-spot settles within 3 cells — fine until formations (post-MVP).
