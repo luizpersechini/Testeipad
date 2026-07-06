@@ -108,7 +108,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M1.4 Minimap in sidebar area showing terrain + camera rectangle; click minimap to jump camera.
 
 ### M2 — Units & movement
-- [ ] M2.1 `sim/entity.js`: pooled entities `{id, kind, type, owner, cell, subOffset, facing(0-31 like original, render maps to 8), hp, state}`. Spawn/despawn. Tests.
+- [x] M2.1 `sim/entity.js`: pooled entities `{id, kind, type, owner, cell, subOffset, facing(0-31 like original, render maps to 8), hp, state}`. Spawn/despawn. Tests.
 - [ ] M2.2 `sim/data/units.js` + `infantry.js`: port stats (cost, speed, hp, armor class, sight, weapon id) for MVP roster — GDI: minigunner, grenadier, rocket soldier, humvee, medium tank, mammoth, harvester, MCV; Nod: rifle, rocket, flamer, buggy, recon bike, light tank, stealth tank, harvester, MCV. Source: `engine/game/game_data.cpp` (already transcribed from originals). Tests: table sanity (every unit has weapon or is unarmed-by-design, costs > 0).
 - [ ] M2.3 `sim/path.js`: A* with terrain costs + occupancy; straight-line fast path; path caching per move order. Tests: reaches goal, routes around obstacles, no path ⇒ closest reachable.
 - [ ] M2.4 Movement in `tick()`: units follow paths with per-type speed, rotate facing toward heading, occupy/release cells. Test: unit ordered A→B arrives in expected tick count, deterministic.

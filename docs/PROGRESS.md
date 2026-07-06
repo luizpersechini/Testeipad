@@ -35,3 +35,11 @@ tiberium/camera-rect), sidebar strip reserved in main.js (camera view now 1080px
 click minimap jumps camera. Tests: 30 pass (4 new).
 Notes: minimap redraws all 4096 cells per frame; cache to offscreen canvas if profiling
 flags it (M9.3).
+
+## 2026-07-06 — M2.1
+Did: sim/entity.js — insertion-ordered Map store (deterministic iteration), monotonic
+never-reused ids, spawn/despawn/relocate with occupancy bookkeeping (projectiles don't
+occupy), facing helpers (32-facing sim -> 8-column sheets, facingToward compass math).
+Tests: 39 pass (9 new).
+Notes: dropped the free-list pool from the plan wording — Map is deterministic and
+simpler; revisit only if M9.3 profiling says allocation matters.
