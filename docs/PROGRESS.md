@@ -43,3 +43,11 @@ occupy), facing helpers (32-facing sim -> 8-column sheets, facingToward compass 
 Tests: 39 pass (9 new).
 Notes: dropped the free-list pool from the plan wording — Map is deterministic and
 simpler; revisit only if M9.3 profiling says allocation matters.
+
+## 2026-07-06 — M2.2
+Did: sim/data/units.js (13 vehicles) + infantry.js (7 types), stats transcribed from
+engine/game/game_data.cpp (itself from UDATA/IDATA). Weapon fields are string ids
+resolved by M3.1 weapons.js. Tests: 44 pass (5 new: table sanity + roster + original
+cost relationships).
+Notes: E1/E3 marked faction 'both' per original TD rules (plan said 'nod rifle' — same
+unit). Added APC/MLRS/artillery/flame_tank beyond MVP since data was at hand.
