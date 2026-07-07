@@ -131,7 +131,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M5.4 Defense structures (guard tower, obelisk-lite, AGT) with turret auto-fire; sell (50% refund) + repair toggle.
 
 ### M6 — AI opponent
-- [ ] M6.1 `sim/ai.js`: port the state machine design from `engine/game/ai_player.cpp` — build-order phase, economy phase, army phase, attack waves scaling with difficulty; target selection (nearest/weakest). Tests: headless AI-vs-AI game for 5,000 ticks completes without error and both AIs build bases (assert entity counts).
+- [x] M6.1 `sim/ai.js`: port the state machine design from `engine/game/ai_player.cpp` — build-order phase, economy phase, army phase, attack waves scaling with difficulty; target selection (nearest/weakest). Tests: headless AI-vs-AI game for 5,000 ticks completes without error and both AIs build bases (assert entity counts).
 - [ ] M6.2 Difficulty settings (easy/normal/hard: income multiplier, wave size, reaction time).
 
 ### M7 — Fog of war & win/lose

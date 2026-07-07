@@ -19,6 +19,7 @@ import { deployMcv } from './placement.js';
 import {
   tickProduction, startProduction, cancelProduction, placeReadyBuilding,
 } from './production.js';
+import { tickAI } from './ai.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -215,6 +216,7 @@ export function gameTick(game, commands = []) {
   tickPower(game);
   tickProduction(game);
   tickRepairs(game);
+  tickAI(game);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
     tickCombat(game, e);

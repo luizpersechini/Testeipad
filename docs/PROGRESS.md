@@ -178,3 +178,13 @@ across their whole footprint (pickEntityAt now footprint-aware). Tower auto-fire
 already live via combat + building weapons (proven in power.test). Tests: 118 pass
 (5 new). M5 milestone complete — the game loop matches original C&C base play.
 Notes: no sell animation / crew ejection (original spawns survivors) — polish.
+
+## 2026-07-07 — M6.1
+Did: sim/ai.js — deterministic skirmish AI (all randomness via game.rng): deploys MCV,
+sends idle harvesters to work, faction build orders (GDI/Nod distinct incl. defenses),
+places ready buildings on a spiral around the yard, keeps infantry+vehicle queues fed,
+launches attack waves at the enemy yard when army >= wave size. Refineries now ship
+with a free working harvester like the original (this un-deadlocked the AI economy).
+Tests: 123 pass (5 new: AI-vs-AI 5000-tick war, economy end-to-end, determinism).
+Notes: seed-42 run has GDI razing Nod by tick ~5000 — the AI actually plays. Peak-based
+assertions because a losing AI's final base can legitimately be rubble.

@@ -47,6 +47,24 @@ export function canPlaceBuilding(game, owner, type, x, y, { ignoreAdjacency = fa
   return true;
 }
 
+// Free cell on the ring just outside a footprint (deterministic scan).
+function freeRingCell(world, x, y, fw, fh) {
+  for (let ring = 1; ring <= 3; ring++) {
+    for (let cy = y - ring; cy <= y + fh - 1 + ring; cy++) {
+      for (let cx = x - ring; cx <= x + fw - 1 + ring; cx++) {
+        const onRing = cx === x - ring || cx === x + fw - 1 + ring
+          || cy === y - ring || cy === y + fh - 1 + ring;
+        if (!onRing || !inBounds(world, cx, cy)) continue;
+        const i = idx(world, cx, cy);
+        if (world.terrain[i] !== TerrainType.CLEAR) continue;
+        if (world.occupancy[i] !== NO_ENTITY) continue;
+        return { x: cx, y: cy };
+      }
+    }
+  }
+  return null;
+}
+
 // Places instantly (production timing/cost is M5.2's job).
 export function placeBuilding(game, owner, type, x, y, opts = {}) {
   if (!canPlaceBuilding(game, owner, type, x, y, opts)) return NO_ENTITY;
@@ -56,6 +74,22 @@ export function placeBuilding(game, owner, type, x, y, opts = {}) {
   });
   if (id !== NO_ENTITY) {
     game.events.push({ type: 'place', x, y, buildingType: type });
+    // A refinery ships with a free harvester that goes straight to work,
+    // exactly like the original.
+    if (data.givesHarvester) {
+      const cell = freeRingCell(game.world, x, y, data.footprint[0], data.footprint[1]);
+      if (cell) {
+        const harv = spawn(game.store, game.world, {
+          kind: EntityKind.UNIT, type: 'harvester', owner,
+          x: cell.x, y: cell.y, hp: 600, facing: 16,
+        });
+        if (harv !== NO_ENTITY) {
+          const e = game.store.entities.get(harv);
+          e.bails = 0;
+          e.state = 'harvest_seek';
+        }
+      }
+    }
   }
   return id;
 }
