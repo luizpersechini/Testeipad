@@ -7,9 +7,11 @@ import {
   createStore, get, relocate, EntityKind, facingToward,
 } from './entity.js';
 import { findPath, cellEnterable } from './path.js';
-import { unitData } from './data/units.js';
-import { infantryData } from './data/infantry.js';
+import { statsFor } from './stats.js';
+import { tickCombat, orderAttack } from './combat.js';
 import { SIM_FACINGS } from './constants.js';
+
+export { statsFor };
 
 // Movement tuning (integer math for determinism):
 // a unit gains speed*25 progress per tick; an orthogonal step costs 1000,
@@ -22,12 +24,6 @@ const MAX_FACING_LAG = 4; // may drive while within this many facings of desired
 const REPATH_COOLDOWN = 8; // ticks between re-path attempts when blocked
 const MAX_REPATHS = 3;
 
-export function statsFor(entity) {
-  if (entity.kind === EntityKind.UNIT) return unitData(entity.type);
-  if (entity.kind === EntityKind.INFANTRY) return infantryData(entity.type);
-  return null;
-}
-
 export function createGame(seed) {
   return {
     seed,
@@ -35,6 +31,7 @@ export function createGame(seed) {
     world: createWorld(seed),
     store: createStore(),
     tick: 0,
+    events: [], // per-tick render events (shots, hits, deaths); cleared each tick
   };
 }
 
@@ -64,9 +61,13 @@ function applyCommand(game, cmd) {
         if (e) {
           e.path = null;
           e.dest = null;
+          e.attackTarget = null;
           e.state = 'idle';
         }
       }
+      break;
+    case 'attack':
+      for (const id of cmd.ids) orderAttack(game, id, cmd.targetId);
       break;
     default:
       break;
@@ -85,7 +86,9 @@ function turnToward(e, desired) {
 }
 
 function tickMovement(game, e) {
-  if (e.state !== 'moving' || !e.path || e.path.length === 0) return;
+  // Moves both explicit move orders and attackers chasing a target.
+  if (e.state !== 'moving' && e.state !== 'attacking') return;
+  if (!e.path || e.path.length === 0) return;
 
   const next = e.path[0];
   const desired = facingToward(e.x, e.y, next.x, next.y);
@@ -101,7 +104,7 @@ function tickMovement(game, e) {
     }
     if (e.repaths >= MAX_REPATHS || !e.dest) {
       e.path = null;
-      e.state = 'idle';
+      if (e.state === 'moving') e.state = 'idle';
       return;
     }
     e.repaths++;
@@ -109,7 +112,7 @@ function tickMovement(game, e) {
     const fresh = findPath(game.world, e.x, e.y, e.dest.x, e.dest.y, { infantry, moverId: e.id });
     if (!fresh || fresh.length === 0) {
       e.path = null;
-      e.state = 'idle';
+      if (e.state === 'moving') e.state = 'idle';
     } else {
       e.path = fresh;
       e.moveProgress = 0;
@@ -137,7 +140,7 @@ function tickMovement(game, e) {
       if (e.path.length === 0) {
         e.path = null;
         e.dest = null;
-        e.state = 'idle';
+        if (e.state === 'moving') e.state = 'idle';
       }
     } else {
       // Someone claimed the cell in the same tick; treat as blocked next tick.
@@ -150,9 +153,11 @@ function tickMovement(game, e) {
 }
 
 export function gameTick(game, commands = []) {
+  game.events = [];
   for (const cmd of commands) applyCommand(game, cmd);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
+    tickCombat(game, e);
   }
   game.tick++;
 }

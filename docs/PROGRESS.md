@@ -87,3 +87,15 @@ replicates COMBAT.CPP integer math (damage * mod >> 8, min 1). Tests: 68 pass (6
 Notes: earlier unit tables (M2.2) carried approximated damage in game_data.cpp;
 weapons.js now holds the true original numbers and unit weapon ids all resolve.
 Projectile speeds are invented (original uses MPH per bullet class) — tune in M3.3.
+
+## 2026-07-07 — M3.2
+Did: sim/combat.js — attack orders, guard auto-acquire (idle armed units scan sight
+range every 8 ticks, staggered by id), chase with stale-goal re-path, homing projectile
+entities, damage via original modifyDamage, death events + kill credit; game.js emits
+per-tick events[] and runs movement+combat; attackCommand added; stats.js extracted
+(import-cycle break); movement now also drives chasing attackers. Fixed: reload field
+was undefined at spawn (nobody could ever fire). Tests: 75 pass (7 new incl. combat
+determinism).
+Notes: turret facing snaps instantly (gradual turret turn = polish). Two test
+expectations were corrected, not code: authentic AP-vs-infantry (0x40) makes tanks
+slow infantry-killers, and guard return fire is legitimate chip damage.

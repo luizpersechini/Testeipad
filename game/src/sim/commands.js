@@ -10,3 +10,7 @@ export function moveCommand(ids, x, y) {
 export function stopCommand(ids) {
   return { type: 'stop', ids: [...ids] };
 }
+
+export function attackCommand(ids, targetId) {
+  return { type: 'attack', ids: [...ids], targetId };
+}

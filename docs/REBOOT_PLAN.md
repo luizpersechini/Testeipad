@@ -116,7 +116,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 
 ### M3 — Combat
 - [x] M3.1 `sim/data/weapons.js`: weapons (damage, ROF, range, projectile speed) + warhead-vs-armor % table from `COMBAT.CPP` / `game_data.cpp`. Tests: table complete for all referenced weapons.
-- [ ] M3.2 `sim/combat.js`: attack orders, target acquisition (guard range), projectiles as entities, damage on impact, death + removal. Turret facing separate from hull for tanks that have one. Tests: DPS math, armor modifiers, kill credit.
+- [x] M3.2 `sim/combat.js`: attack orders, target acquisition (guard range), projectiles as entities, damage on impact, death + removal. Turret facing separate from hull for tanks that have one. Tests: DPS math, armor modifiers, kill credit.
 - [ ] M3.3 `render/draw_effects.js`: muzzle flash, projectile, explosion anim from effects sheet on death/impact. Auto-return-fire when attacked (guard mission).
 - [ ] M3.4 Stances/missions: guard (default), attack-move (A+click), force-attack (Ctrl+click), stop (S). Group hotkeys Ctrl+1-9 / 1-9.
 

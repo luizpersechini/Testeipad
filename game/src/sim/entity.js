@@ -57,6 +57,7 @@ export function spawn(store, world, props) {
     state: 'idle',
     path: null, // filled by pathfinding
     target: NO_ENTITY,
+    reload: 0, // ticks until the weapon can fire again
   };
   store.entities.set(id, entity);
   if (occupies(kind)) {
