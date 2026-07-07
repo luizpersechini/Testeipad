@@ -60,18 +60,31 @@ export function drawEntities(ctx, store, cam, registry, selection, tick, game = 
     const { x: sx, y: sy } = screenPos(e, cam);
     if (sx < -TILE * 2 || sy < -TILE * 2 || sx > cam.viewW + TILE || sy > cam.viewH + TILE) continue;
 
-    // Buildings: draw from the buildings sheet, scaled to the footprint.
+    // Buildings: prefer a dedicated per-building sheet (original assets),
+    // else the placeholder buildings grid — scaled to the footprint.
     if (e.kind === EntityKind.BUILDING) {
       const [fw, fh] = e.footprint;
       const w = fw * TILE;
       const h = fh * TILE;
-      const bSheet = registry?.sheets?.buildings;
       const spriteName = statsFor(e)?.sprite;
-      const f = bSheet?.img && spriteName
-        ? buildingFrame(SHEET_DEFS.buildings, e.owner === HouseType.NOD ? 1 : 0, spriteName)
-        : null;
-      if (f) {
-        ctx.drawImage(bSheet.img, f.sx, f.sy, f.sw, f.sh, sx, sy, w, h);
+      const nodRow = e.owner === HouseType.NOD ? 1 : 0;
+      const pair = spriteName ? registry?.sheets?.[`building_${e.type}`]
+        ?? registry?.sheets?.[`building_${spriteName}`] : null;
+      let f = null;
+      let img = null;
+      if (pair?.img) {
+        const d = pair.def;
+        f = { sx: 0, sy: nodRow * d.frameH, sw: d.frameW, sh: d.frameH };
+        img = pair.img;
+      } else {
+        const bSheet = registry?.sheets?.buildings;
+        if (bSheet?.img && spriteName) {
+          f = buildingFrame(bSheet.def, nodRow, spriteName);
+          img = bSheet.img;
+        }
+      }
+      if (f && img) {
+        ctx.drawImage(img, f.sx, f.sy, f.sw, f.sh, sx, sy, w, h);
       } else {
         ctx.fillStyle = FACTION_COLOR[e.owner] ?? '#f0f';
         ctx.fillRect(sx + 2, sy + 2, w - 4, h - 4);
@@ -90,7 +103,9 @@ export function drawEntities(ctx, store, cam, registry, selection, tick, game = 
     let drawn = false;
 
     if (sheet?.img) {
-      const def = SHEET_DEFS[sheetName];
+      // Use the loaded sheet's own geometry so original-asset overrides with
+      // different frame sizes render correctly.
+      const def = sheet.def ?? SHEET_DEFS[sheetName];
       let f = null;
       if (e.kind === EntityKind.UNIT) {
         f = vehicleFrame(def, facingTo8(e.facing));

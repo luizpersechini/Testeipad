@@ -62,3 +62,6 @@ Makefile
 # Node (for web build tools)
 node_modules/
 package-lock.json
+
+# Extracted original game assets (freeware download, local use only - not committed)
+assets/original/
