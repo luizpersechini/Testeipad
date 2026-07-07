@@ -9,7 +9,12 @@ released by Electronic Arts.
 
 ## ▶ How to play
 
-No build step, no dependencies — you just need a browser and any static file server:
+**Online:** once this branch is merged to `main` and GitHub Pages is enabled for the
+repository (Settings → Pages → Source: *GitHub Actions*), every push deploys the game
+to `https://<user>.github.io/<repo>/` automatically — tests run first, then it ships.
+
+**Locally:** no build step, no dependencies — you just need a browser and any static
+file server:
 
 ```bash
 cd Testeipad

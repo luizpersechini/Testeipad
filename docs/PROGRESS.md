@@ -300,3 +300,12 @@ round trip.
 Notes: replay watches from the recorder's fog perspective; a "reveal all" spectator
 toggle would be nice. Recording of loaded-from-save games is off (no recording field)
 — replays cover full matches only.
+
+## 2026-07-07 — M10.3
+Did: .github/workflows/pages.yml — on push to main: run the full sim test suite,
+then assemble a static site (root redirect + game/ + assets/) and deploy to GitHub
+Pages; root index.html redirects to game/. README documents enabling Pages
+(Settings -> Pages -> Source: GitHub Actions). Tests: 163 pass.
+Notes: deploy is gated on the test job — a red suite never ships. The owner needs
+to merge to main and flip the Pages setting once; after that every merge deploys.
+M10 COMPLETE — every checkbox in the reboot plan is done.
