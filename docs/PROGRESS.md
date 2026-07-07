@@ -264,3 +264,14 @@ every 10 ticks instead of 4096 fillRects/frame) and gained live entity dots (fog
 filtered, faction-colored). Tests: 153 pass (1 new).
 Notes: sim was already comfortably inside budget — no sim changes needed. If worst-
 case matters later, stagger bulk move-order pathfinding across ticks.
+
+## 2026-07-07 — M9.4
+Did: retired the prototype demos (demo/ + terminal_demo.py -> legacy/), rewrote
+README as a player-first doc (how to run, controls table, feature list, layout,
+GPL note). Verified the game end-to-end in a REAL browser via the sandbox's
+Playwright/Chromium: menu -> skirmish setup -> in-game with fog, sprites, sidebar,
+minimap all rendering — live screenshots committed to docs/ (shot_menu/setup/game).
+Tests: 153 pass. M9.1-M9.4 done.
+Notes: important correction — ES modules do NOT load over file://; README now says
+to serve with python3 -m http.server. One 404 during browser run (missing optional
+asset; harmless rect fallback) — track down in a polish pass.
