@@ -25,6 +25,7 @@ import {
 import { createInputState, wireInput } from './input.js';
 import { serializeGame, deserializeGame } from './sim/save.js';
 import { createAudio, playForEvents, toggleMute } from './render/audio.js';
+import { createScenarioGame } from './sim/scenarios.js';
 import {
   createFeedback, markersFromCommands, feedbackFromEvents, pruneFeedback,
   decayShake, drawMarkers, drawPings,
@@ -203,8 +204,31 @@ canvas.addEventListener('mousedown', (e) => {
   const action = menuClick(menu, item, e.button === 2 ? -1 : 1);
   if (action?.type === 'start') {
     shell.session = startSession(action.settings);
+  } else if (action?.type === 'startScenario') {
+    shell.session = startScenarioSession(action.id);
   }
 });
+
+function startScenarioSession(id) {
+  const setup = createScenarioGame(id);
+  if (!setup) return null;
+  enableAI(setup.game, setup.aiHouse, setup.aiDifficulty);
+  const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, setup.game.world.w, setup.game.world.h);
+  centerCameraOn(cam, setup.start.x * TILE, setup.start.y * TILE);
+  return {
+    game: setup.game,
+    cam,
+    player: setup.player,
+    minimap: createMinimapLayout(canvas.width, SIDEBAR_W, setup.game.world),
+    input: createInputState(),
+    effects: createEffects(),
+    feedback: createFeedback(),
+    shownCredits: setup.game.houses[setup.player].credits,
+    paused: false,
+    accumulator: 0,
+    toast: { text: setup.name, until: setup.game.tick + 60 },
+  };
+}
 
 function updateCamera(s) {
   let dx = 0;

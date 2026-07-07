@@ -20,7 +20,7 @@ export function createStats() {
   };
 }
 
-function canStillFight(game, owner) {
+function hasProduction(game, owner) {
   for (const e of game.store.entities.values()) {
     if (e.owner !== owner || e.hp <= 0) continue;
     if (e.kind === EntityKind.BUILDING && PRODUCTION_TYPES.has(e.type)) return true;
@@ -29,12 +29,28 @@ function canStillFight(game, owner) {
   return false;
 }
 
+function hasAnyForce(game, owner) {
+  for (const e of game.store.entities.values()) {
+    if (e.owner === owner && e.hp > 0 && e.kind !== EntityKind.PROJECTILE) return true;
+  }
+  return false;
+}
+
+// A house that ever had a base loses it when production is gone; a house that
+// never had one (strike-team missions) fights while any of its force lives.
+function canStillFight(game, owner) {
+  if (game.everHadProduction?.has(owner)) return hasProduction(game, owner);
+  return hasAnyForce(game, owner);
+}
+
 export function tickVictory(game) {
   if (game.winner !== null || game.tick % CHECK_INTERVAL !== 0) return;
 
-  // A house joins the fight the first time it can produce.
+  game.everHadProduction = game.everHadProduction ?? new Set();
   for (let owner = 0; owner < game.houses.length - 1; owner++) {
-    if (!game.participants.has(owner) && canStillFight(game, owner)) {
+    if (hasProduction(game, owner)) game.everHadProduction.add(owner);
+    // A house joins the match once it fields anything at all.
+    if (!game.participants.has(owner) && hasAnyForce(game, owner)) {
       game.participants.add(owner);
     }
   }

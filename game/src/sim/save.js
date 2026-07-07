@@ -15,6 +15,7 @@ export function serializeGame(game) {
     rngState: game.rng.getState(),
     winner: game.winner,
     participants: [...game.participants],
+    everHadProduction: [...(game.everHadProduction ?? [])],
     houses: structuredClone(game.houses),
     ais: structuredClone(game.ais ?? null),
     world: {
@@ -60,5 +61,6 @@ export function deserializeGame(data) {
     fog: data.fog.map((f) => (f ? Uint8Array.from(f) : null)),
     winner: data.winner,
     participants: new Set(data.participants),
+    everHadProduction: new Set(data.everHadProduction ?? []),
   };
 }

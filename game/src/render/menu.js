@@ -1,9 +1,11 @@
-// Menu shell: main menu and skirmish setup. Model + layout + hit-testing are
-// pure (node-tested); draw* needs a ctx.
+// Menu shell: main menu, skirmish setup, and mission select. Model + layout +
+// hit-testing are pure (node-tested); draw* needs a ctx.
+
+import { SCENARIOS } from '../sim/scenarios.js';
 
 export function createMenu() {
   return {
-    screen: 'main', // 'main' | 'skirmish' | 'game' | 'end'
+    screen: 'main', // 'main' | 'skirmish' | 'missions' | 'game' | 'end'
     skirmish: {
       faction: 'gdi',
       credits: 5000,
@@ -43,8 +45,17 @@ export function layoutMenu(menu, canvasW, canvasH) {
   });
 
   if (menu.screen === 'main') {
-    push('skirmish', 'SKIRMISH', null, canvasH / 2 - 40);
-    push('about', 'ABOUT', null, canvasH / 2 + 20);
+    push('skirmish', 'SKIRMISH', null, canvasH / 2 - 70);
+    push('missions', 'MISSIONS', null, canvasH / 2 - 10);
+    push('about', 'ABOUT', null, canvasH / 2 + 50);
+  } else if (menu.screen === 'missions') {
+    let y = canvasH / 2 - 120;
+    for (const [id, s] of Object.entries(SCENARIOS)) {
+      push(`mission:${id}`, s.name, null, y);
+      y += 56;
+    }
+    y += 20;
+    push('back', 'BACK', null, y);
   } else if (menu.screen === 'skirmish') {
     const s = menu.skirmish;
     let y = canvasH / 2 - 150;
@@ -68,6 +79,18 @@ export function menuClick(menu, item, dir = 1) {
   if (!item) return null;
   if (menu.screen === 'main') {
     if (item.id === 'skirmish') menu.screen = 'skirmish';
+    else if (item.id === 'missions') menu.screen = 'missions';
+    return null;
+  }
+  if (menu.screen === 'missions') {
+    if (item.id === 'back') {
+      menu.screen = 'main';
+      return null;
+    }
+    if (item.id.startsWith('mission:')) {
+      menu.screen = 'game';
+      return { type: 'startScenario', id: item.id.slice('mission:'.length) };
+    }
     return null;
   }
   if (menu.screen === 'skirmish') {

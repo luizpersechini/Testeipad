@@ -275,3 +275,16 @@ Tests: 153 pass. M9.1-M9.4 done.
 Notes: important correction — ES modules do NOT load over file://; README now says
 to serve with python3 -m http.server. One 404 during browser run (missing optional
 asset; harmless rect fallback) — track down in a polish pass.
+
+## 2026-07-07 — M10.1
+Did: sim/scenarios.js — two scripted missions ported from the frozen C++ designs
+(GDI 1: The Beachhead — full base battle vs Nod outpost with river/rock terrain;
+Nod 1: Silencing Dissent — base-less strike team assault), declarative layouts on
+flat worlds (fully deterministic, no rng), MISSIONS menu screen wired into the shell.
+Fixed a real victory-logic hole the mission test exposed: houses that never owned
+production (strike teams) never became participants, so such games could never end —
+victory now tracks everHadProduction (base owners lose with their base; base-less
+forces fight while units live), serialized in saves. Tests: 158 pass (5 new).
+Notes: mission 2's "destroy the comm center" objective is currently "destroy all GDI
+production" — bespoke objectives (destroy-specific-target) would need a triggers
+system; noted as future work.

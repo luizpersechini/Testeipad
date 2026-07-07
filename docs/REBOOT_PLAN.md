@@ -149,7 +149,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M9.4 Retire `demo/index.html` (move to `legacy/`), update README with "open game/index.html to play" + screenshot generated from the new game.
 
 ### M10 — Stretch (only if all above done)
-- [ ] M10.1 Campaign-style scripted scenarios (port 2–3 mission layouts from the old `engine/game/scenario.cpp` designs).
+- [x] M10.1 Campaign-style scripted scenarios (port 2–3 mission layouts from the old `engine/game/scenario.cpp` designs).
 - [ ] M10.2 Replay system (record command stream + seed — determinism makes this nearly free).
 - [ ] M10.3 GitHub Pages workflow so the owner gets a playable URL.
 
