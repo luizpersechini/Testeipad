@@ -327,3 +327,18 @@ STATUS: every checkbox in REBOOT_PLAN.md (M0-M10) is complete. The loop's work
 queue is empty. Future direction ideas: bespoke mission objectives/triggers,
 spectator fog toggle for replays, sprite art upgrades, multiplayer over the
 command stream.
+
+## 2026-07-07 — M11 (iPad port)
+Did: responsive fullscreen shell — fixed 1280x720 internal canvas CSS-scaled to any
+screen (16:9 letterboxed), all pointer input mapped through canvasPos(); PWA
+(manifest.webmanifest, generated icons, iOS metas: Add to Home Screen = fullscreen
+landscape app, no rubber-banding/zoom); touch controls in input.js wireTouch — tap
+select/order (C&C left-click style via shared primaryMapAction), one-finger drag from
+empty ground = box-select, two-finger drag = camera pan, long-press = attack-move,
+render/touchbar.js on-screen command bar (stop/attack/deploy/harvest/repair/sell/
+pause, 44px targets) shared with mouse clicks; WebAudio resume on first gesture
+(iOS suspends contexts). Verified with Playwright touch emulation at iPad 1180x820:
+menu -> skirmish via taps, tap-select shows brackets + full command bar, zero page
+exceptions; screenshots in docs/shot_ipad_*.png. Tests: 170 pass (4 new).
+Notes: pinch-zoom not implemented (fixed TILE renderer); marquee requires starting
+on empty ground — starting on a unit selects it instead, matching finger accuracy.

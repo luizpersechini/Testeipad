@@ -162,3 +162,8 @@ The loop appends one entry per iteration to `docs/PROGRESS.md`. Format:
 Did: implemented world grid + terrain gen. Tests: 14 pass.
 Notes: tiberium spread rate guessed at 1/32 chance per slow-tick; revisit vs OVERLAY.CPP.
 ```
+
+### M11 — iPad port (owner-directed, 2026-07-07)
+- [x] M11.1 Responsive fullscreen canvas: fixed 1280×720 internal resolution CSS-scaled to any screen, all pointer input scaled through one helper; PWA manifest + icons + iOS metas so "Add to Home Screen" runs fullscreen landscape.
+- [x] M11.2 Touch controls: tap select/order (C&C-style), one-finger drag box-select, two-finger drag camera pan, long-press attack-move, on-screen command bar (stop/deploy/harvest/repair/sell/pause) replacing hotkeys, WebAudio unlock on first touch.
+- [x] M11.3 Verify with Playwright touch emulation at iPad viewport; document the scheme in README.

@@ -3,18 +3,40 @@
 <head>
 <meta charset="UTF-8">
 <title>C&C: Tiberian Dawn — Web Port</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="C&C TD">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   * { margin: 0; padding: 0; }
-  body {
+  html, body {
+    height: 100%;
     background: #0a0a0a;
+    overflow: hidden;
+    /* iOS: no rubber-banding, no callouts, no text selection on the game */
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    font-family: monospace;
-    color: #9f9;
+    height: 100dvh;
   }
-  canvas { border: 2px solid #333; display: block; }
+  canvas {
+    display: block;
+    touch-action: none; /* the game handles all gestures itself */
+    /* Fixed 1280x720 internal resolution, scaled to fit the screen. */
+    width: min(100vw, calc(100dvh * 16 / 9));
+    height: min(100dvh, calc(100vw * 9 / 16));
+    image-rendering: pixelated;
+  }
 </style>
 </head>
 <body>
