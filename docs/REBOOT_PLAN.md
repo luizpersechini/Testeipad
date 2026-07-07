@@ -143,7 +143,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M8.2 Save/load to localStorage (serialize sim state — it's already plain data), 3 slots.
 
 ### M9 — Feel & polish
-- [ ] M9.1 Audio via WebAudio: synthesize placeholder SFX (shots, explosions, "unit ready", EVA-style beeps) — no copyrighted audio. Mute toggle.
+- [x] M9.1 Audio via WebAudio: synthesize placeholder SFX (shots, explosions, "unit ready", EVA-style beeps) — no copyrighted audio. Mute toggle.
 - [ ] M9.2 Right-drag scroll, screen-shake on big explosions, unit acknowledgment flashes, attack-notify minimap ping ("base under attack").
 - [ ] M9.3 Performance pass: 300 units + 60 buildings at 60fps render / stable 15 t/s sim on a MacBook Air (measure with a headless perf test in node; budget: tick < 8ms at 300 entities).
 - [ ] M9.4 Retire `demo/index.html` (move to `legacy/`), update README with "open game/index.html to play" + screenshot generated from the new game.

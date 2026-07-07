@@ -237,3 +237,12 @@ including the gold test: a save/loaded game continues bit-identically for 800 ti
 alongside the original, and survives a JSON round trip. M8 milestone complete.
 Notes: saves store the player's house; menu-based load UI (list slots with
 timestamps) would be nicer than F-keys — polish item.
+
+## 2026-07-07 — M9.1
+Did: render/audio.js — WebAudio-synthesized SFX (filtered noise bursts for guns/
+explosions, oscillator blips for laser/EVA-style ready beeps/sell/unload), pure
+planSounds() with per-tick dedupe + global cap of 5, lazy AudioContext (first
+gesture), M mute toggle persisted to localStorage. Every weapon maps to a recipe
+(test-enforced). Tests: 148 pass (5 new).
+Notes: all synthesized — zero copyrighted audio. Victory fanfare is a single square
+tone; could be a small melody later.

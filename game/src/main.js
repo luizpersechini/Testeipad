@@ -24,6 +24,7 @@ import {
 } from './render/menu.js';
 import { createInputState, wireInput } from './input.js';
 import { serializeGame, deserializeGame } from './sim/save.js';
+import { createAudio, playForEvents, toggleMute } from './render/audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -95,6 +96,9 @@ const menu = createMenu();
 const shell = { menu, session: null };
 wireInput(canvas, shell);
 
+const audio = createAudio();
+audio.muted = window.localStorage.getItem('cnc-td-muted') === '1';
+
 const SCROLL_SPEED = 12;
 const EDGE_PAN_MARGIN = 24;
 const keys = new Set();
@@ -151,6 +155,9 @@ window.addEventListener('keydown', (e) => {
   if (e.key.startsWith('Arrow')) e.preventDefault();
   if (shell.session && menu.screen === 'game' && (e.key === 'p' || e.key === 'P')) {
     shell.session.paused = !shell.session.paused;
+  }
+  if (e.key === 'm' || e.key === 'M') {
+    window.localStorage.setItem('cnc-td-muted', toggleMute(audio) ? '1' : '0');
   }
   const saveKeys = { F2: 1, F3: 2, F4: 3 };
   const loadKeys = { F6: 1, F7: 2, F8: 3 };
@@ -276,7 +283,7 @@ function renderGame(s) {
   ctx.fillStyle = '#c8ffc8';
   ctx.font = '12px monospace';
   ctx.fillText(
-    `tick ${game.tick}  sel ${input.selection.size}  A attack-move  S stop  P pause  F2-F4 save  F6-F8 load`,
+    `tick ${game.tick}  sel ${input.selection.size}  A attack-move  S stop  P pause  M ${audio.muted ? 'unmute' : 'mute'}  F2-F4/F6-F8 save/load`,
     8, 15,
   );
 
@@ -348,6 +355,7 @@ function frame(now) {
       gameTick(s.game, s.input.commandQueue.splice(0));
       spawnFromEvents(s.effects, s.game.events, s.game.tick);
       pruneEffects(s.effects, s.game.tick);
+      playForEvents(audio, s.game.events);
     }
     s.accumulator -= MS_PER_TICK;
   }
