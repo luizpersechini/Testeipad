@@ -2,9 +2,8 @@
 // Sim ticks at a fixed 15/s (accumulator); rendering runs at rAF rate.
 
 import { MS_PER_TICK, TILE, HouseType } from './sim/constants.js';
-import { createGame, gameTick } from './sim/game.js';
-import { spawn, EntityKind } from './sim/entity.js';
-import { placeBuilding, canPlaceBuilding } from './sim/placement.js';
+import { gameTick } from './sim/game.js';
+import { canPlaceBuilding } from './sim/placement.js';
 import { enableAI } from './sim/ai.js';
 import { loadAssets } from './render/assets.js';
 import {
@@ -26,6 +25,10 @@ import { createInputState, wireInput } from './input.js';
 import { serializeGame, deserializeGame } from './sim/save.js';
 import { createAudio, playForEvents, toggleMute } from './render/audio.js';
 import { createScenarioGame } from './sim/scenarios.js';
+import { createSkirmishGame } from './sim/setup.js';
+import {
+  createRecording, recordCommands, createPlayback, playbackCommands,
+} from './sim/replay.js';
 import {
   createFeedback, markersFromCommands, feedbackFromEvents, pruneFeedback,
   decayShake, drawMarkers, drawPings,
@@ -45,55 +48,32 @@ loadAssets().then((r) => {
 
 // ── Session (one running match) ──────────────────────────────────────────────
 
-function startSession(settings) {
-  const player = settings.faction === 'nod' ? HouseType.NOD : HouseType.GDI;
-  const enemy = player === HouseType.GDI ? HouseType.NOD : HouseType.GDI;
-  const game = createGame(settings.seed, { startingCredits: settings.credits });
-  const { world } = game;
-
-  const starts = world.startPositions;
-  const playerStart = starts[player === HouseType.GDI ? 0 : 1];
-  const enemyStart = starts[player === HouseType.GDI ? 1 : 0];
-
-  const escort = (owner) => {
-    const heavy = owner === HouseType.GDI ? 'medium_tank' : 'light_tank';
-    const heavyHp = owner === HouseType.GDI ? 400 : 300;
-    return [
-      [EntityKind.UNIT, heavy, heavyHp],
-      [EntityKind.UNIT, heavy, heavyHp],
-      [EntityKind.INFANTRY, 'minigunner', 50],
-      [EntityKind.INFANTRY, 'minigunner', 50],
-      [EntityKind.INFANTRY, 'rocket_soldier', 45],
-    ];
-  };
-  for (const [owner, start] of [[player, playerStart], [enemy, enemyStart]]) {
-    placeBuilding(game, owner, 'construction_yard', start.x - 1, start.y - 1, { ignoreAdjacency: true });
-    placeBuilding(game, owner, 'power_plant', start.x + 3, start.y - 1);
-    escort(owner).forEach(([kind, type, hp], i) => {
-      spawn(game.store, world, {
-        kind, type, owner: owner, hp,
-        x: start.x + (i % 4) - 1,
-        y: start.y + ((i / 4) | 0) + 3,
-      });
-    });
-  }
-  enableAI(game, enemy, settings.difficulty);
-
-  const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, world.w, world.h);
-  centerCameraOn(cam, playerStart.x * TILE, playerStart.y * TILE);
-
+// Shared session wrapper around a constructed game.
+function makeSession({ game, player, start }, extras = {}) {
+  const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, game.world.w, game.world.h);
+  centerCameraOn(cam, start.x * TILE, start.y * TILE);
   return {
     game,
     cam,
     player,
-    minimap: createMinimapLayout(canvas.width, SIDEBAR_W, world),
+    minimap: createMinimapLayout(canvas.width, SIDEBAR_W, game.world),
     input: createInputState(),
     effects: createEffects(),
     feedback: createFeedback(),
-    shownCredits: settings.credits,
+    shownCredits: game.houses[player].credits,
     paused: false,
     accumulator: 0,
+    recording: null,
+    playback: null,
+    ...extras,
   };
+}
+
+function startSession(settings) {
+  const built = createSkirmishGame(settings);
+  return makeSession(built, {
+    recording: createRecording({ mode: 'skirmish', settings }),
+  });
 }
 
 // ── Shell state ──────────────────────────────────────────────────────────────
@@ -166,6 +146,11 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') {
     window.localStorage.setItem('cnc-td-muted', toggleMute(audio) ? '1' : '0');
   }
+  if ((e.key === 'w' || e.key === 'W')
+    && shell.session && shell.session.game.winner !== null && !shell.session.playback) {
+    const replay = startReplaySession();
+    if (replay) shell.session = replay;
+  }
   const saveKeys = { F2: 1, F3: 2, F4: 3 };
   const loadKeys = { F6: 1, F7: 2, F8: 3 };
   if (saveKeys[e.key]) {
@@ -213,21 +198,22 @@ function startScenarioSession(id) {
   const setup = createScenarioGame(id);
   if (!setup) return null;
   enableAI(setup.game, setup.aiHouse, setup.aiDifficulty);
-  const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, setup.game.world.w, setup.game.world.h);
-  centerCameraOn(cam, setup.start.x * TILE, setup.start.y * TILE);
-  return {
-    game: setup.game,
-    cam,
-    player: setup.player,
-    minimap: createMinimapLayout(canvas.width, SIDEBAR_W, setup.game.world),
-    input: createInputState(),
-    effects: createEffects(),
-    feedback: createFeedback(),
-    shownCredits: setup.game.houses[setup.player].credits,
-    paused: false,
-    accumulator: 0,
+  return makeSession(setup, {
+    recording: createRecording({ mode: 'scenario', id }),
     toast: { text: setup.name, until: setup.game.tick + 60 },
-  };
+  });
+}
+
+function startReplaySession() {
+  const raw = window.localStorage.getItem('cnc-td-replay-last');
+  if (!raw) return null;
+  const playback = createPlayback(JSON.parse(raw));
+  if (!playback) return null;
+  menu.screen = 'game';
+  return makeSession(playback, {
+    playback,
+    toast: { text: 'REPLAY — watching the last match', until: playback.game.tick + 90 },
+  });
 }
 
 function updateCamera(s) {
@@ -371,6 +357,7 @@ function drawEndScreen(s) {
     `Tiberium harvested: $${stats.creditsHarvested}`,
     '',
     'Click anywhere to return to the menu',
+    s.playback ? '' : 'Press W to watch the replay',
   ];
   lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, 330 + i * 30));
   ctx.textAlign = 'left';
@@ -396,7 +383,15 @@ function frame(now) {
   if (s.accumulator > 250) s.accumulator = 250; // background-tab pause guard
   while (s.accumulator >= MS_PER_TICK) {
     if (!s.paused && s.game.winner === null) {
-      const commands = s.input.commandQueue.splice(0);
+      // Replays feed recorded commands; live games record what the human did.
+      let commands;
+      if (s.playback) {
+        s.input.commandQueue.length = 0; // spectators don't command
+        commands = playbackCommands(s.playback, s.game.tick);
+      } else {
+        commands = s.input.commandQueue.splice(0);
+        if (s.recording) recordCommands(s.recording, s.game.tick, commands);
+      }
       markersFromCommands(s.feedback, commands, s.game.tick);
       gameTick(s.game, commands);
       spawnFromEvents(s.effects, s.game.events, s.game.tick);
@@ -412,7 +407,16 @@ function frame(now) {
   updateCamera(s);
   clampCamera(s.cam);
   renderGame(s);
-  if (s.game.winner !== null) drawEndScreen(s);
+  if (s.game.winner !== null) {
+    // Persist the finished match once so it can be re-watched.
+    if (s.recording && !s.replaySaved) {
+      s.replaySaved = true;
+      try {
+        window.localStorage.setItem('cnc-td-replay-last', JSON.stringify(s.recording));
+      } catch { /* storage full: replay is a nice-to-have */ }
+    }
+    drawEndScreen(s);
+  }
   requestAnimationFrame(frame);
 }
 

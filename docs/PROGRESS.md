@@ -288,3 +288,15 @@ forces fight while units live), serialized in saves. Tests: 158 pass (5 new).
 Notes: mission 2's "destroy the comm center" objective is currently "destroy all GDI
 production" — bespoke objectives (destroy-specific-target) would need a triggers
 system; noted as future work.
+
+## 2026-07-07 — M10.2
+Did: sim/setup.js (match construction moved into the sim: skirmish + scenario behind
+one buildFromSetup door — main.js startSession now delegates) and sim/replay.js
+(recording = setup descriptor + sparse {tick, commands} log; playback rebuilds and
+re-feeds). Shell: every live match records; on game end the recording persists to
+localStorage; press W on the end screen to watch the whole match replay as a
+spectator. Tests: 163 pass (5 new) incl. bit-identical 1200-tick replay and JSON
+round trip.
+Notes: replay watches from the recorder's fog perspective; a "reveal all" spectator
+toggle would be nice. Recording of loaded-from-save games is off (no recording field)
+— replays cover full matches only.

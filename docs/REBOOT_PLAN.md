@@ -150,7 +150,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 
 ### M10 — Stretch (only if all above done)
 - [x] M10.1 Campaign-style scripted scenarios (port 2–3 mission layouts from the old `engine/game/scenario.cpp` designs).
-- [ ] M10.2 Replay system (record command stream + seed — determinism makes this nearly free).
+- [x] M10.2 Replay system (record command stream + seed — determinism makes this nearly free).
 - [ ] M10.3 GitHub Pages workflow so the owner gets a playable URL.
 
 ## 6. Progress log
