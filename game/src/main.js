@@ -21,9 +21,10 @@ import {
 import {
   createMenu, layoutMenu, hitMenuItem, menuClick, drawMenu,
 } from './render/menu.js';
-import { createInputState, wireInput } from './input.js';
+import { createInputState, wireInput, wireTouch, canvasPos } from './input.js';
+import { layoutCommandBar, drawCommandBar } from './render/touchbar.js';
 import { serializeGame, deserializeGame } from './sim/save.js';
-import { createAudio, playForEvents, toggleMute } from './render/audio.js';
+import { createAudio, playForEvents, toggleMute, resumeAudio } from './render/audio.js';
 import { createScenarioGame } from './sim/scenarios.js';
 import { createSkirmishGame } from './sim/setup.js';
 import {
@@ -79,17 +80,25 @@ function startSession(settings) {
 // ── Shell state ──────────────────────────────────────────────────────────────
 
 const menu = createMenu();
-const shell = { menu, session: null };
+// pointer: last known cursor/finger position in canvas coordinates.
+// isMouse gates edge-panning (a finger near the edge must not scroll).
+const shell = { menu, session: null, pointer: { x: -1, y: -1, isMouse: false } };
 wireInput(canvas, shell);
 
 const audio = createAudio();
 audio.muted = window.localStorage.getItem('cnc-td-muted') === '1';
 
+// Touch (iPad): taps on menus/end screens route to the same handler as
+// clicks; the first touch also unlocks iOS's suspended audio context.
+wireTouch(canvas, shell, {
+  onUiTap: (px, py) => handleUiPointer(px, py, 0),
+  onAnyTouch: () => resumeAudio(audio),
+});
+canvas.addEventListener('mousedown', () => resumeAudio(audio));
+
 const SCROLL_SPEED = 12;
 const EDGE_PAN_MARGIN = 24;
 const keys = new Set();
-let mouseX = -1;
-let mouseY = -1;
 
 // ── Save/load: F2/F3/F4 save slots 1-3, F6/F7/F8 load them ─────────────────
 
@@ -163,17 +172,16 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => keys.delete(e.key));
 canvas.addEventListener('mousemove', (e) => {
-  const r = canvas.getBoundingClientRect();
-  mouseX = e.clientX - r.left;
-  mouseY = e.clientY - r.top;
+  const p = canvasPos(canvas, e.clientX, e.clientY);
+  shell.pointer = { x: p.x, y: p.y, isMouse: true };
 });
 canvas.addEventListener('mouseleave', () => {
-  mouseX = -1;
-  mouseY = -1;
+  shell.pointer = { x: -1, y: -1, isMouse: true };
 });
 
-// Menu clicks (left cycles forward, right cycles back) + end-screen exit.
-canvas.addEventListener('mousedown', (e) => {
+// Menu/end-screen pointer handling, shared by mouse clicks and touch taps.
+// dir: +1 cycles options forward (left click / tap), -1 backward (right click).
+function handleUiPointer(px, py, dir) {
   if (menu.screen === 'game') {
     if (shell.session && shell.session.game.winner !== null) {
       menu.screen = 'main';
@@ -181,17 +189,19 @@ canvas.addEventListener('mousedown', (e) => {
     }
     return;
   }
-  const r = canvas.getBoundingClientRect();
-  const px = e.clientX - r.left;
-  const py = e.clientY - r.top;
   const items = layoutMenu(menu, canvas.width, canvas.height);
   const item = hitMenuItem(items, px, py);
-  const action = menuClick(menu, item, e.button === 2 ? -1 : 1);
+  const action = menuClick(menu, item, dir < 0 ? -1 : 1);
   if (action?.type === 'start') {
     shell.session = startSession(action.settings);
   } else if (action?.type === 'startScenario') {
     shell.session = startScenarioSession(action.id);
   }
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const p = canvasPos(canvas, e.clientX, e.clientY);
+  handleUiPointer(p.x, p.y, e.button === 2 ? -1 : 1);
 });
 
 function startScenarioSession(id) {
@@ -223,11 +233,13 @@ function updateCamera(s) {
   if (keys.has('ArrowRight')) dx += SCROLL_SPEED;
   if (keys.has('ArrowUp')) dy -= SCROLL_SPEED;
   if (keys.has('ArrowDown')) dy += SCROLL_SPEED;
-  if (mouseX >= 0 && !s.input.drag) {
-    if (mouseX < EDGE_PAN_MARGIN) dx -= SCROLL_SPEED;
-    if (mouseX > s.cam.viewW - EDGE_PAN_MARGIN && mouseX < s.cam.viewW + 4) dx += SCROLL_SPEED;
-    if (mouseY < EDGE_PAN_MARGIN) dy -= SCROLL_SPEED;
-    if (mouseY > s.cam.viewH - EDGE_PAN_MARGIN) dy += SCROLL_SPEED;
+  // Edge-pan is a mouse behavior: a finger resting near the edge must not scroll.
+  const ptr = shell.pointer;
+  if (ptr.isMouse && ptr.x >= 0 && !s.input.drag) {
+    if (ptr.x < EDGE_PAN_MARGIN) dx -= SCROLL_SPEED;
+    if (ptr.x > s.cam.viewW - EDGE_PAN_MARGIN && ptr.x < s.cam.viewW + 4) dx += SCROLL_SPEED;
+    if (ptr.y < EDGE_PAN_MARGIN) dy -= SCROLL_SPEED;
+    if (ptr.y > s.cam.viewH - EDGE_PAN_MARGIN) dy += SCROLL_SPEED;
   }
   if (dx || dy) moveCamera(s.cam, dx, dy);
 }
@@ -301,12 +313,16 @@ function renderGame(s) {
   input.sidebarItems = layoutSidebarItems(game, player, sbx, SIDEBAR_W, pbY + 32);
   drawSidebar(ctx, input.sidebarItems, registry, game.tick);
 
-  // Placement ghost under the cursor.
-  if (input.placing && mouseX >= 0 && mouseX < cam.viewW) {
-    const cell = screenToCell(cam, mouseX, mouseY);
+  // Placement ghost under the cursor/finger.
+  if (input.placing && shell.pointer.x >= 0 && shell.pointer.x < cam.viewW) {
+    const cell = screenToCell(cam, shell.pointer.x, shell.pointer.y);
     const legal = canPlaceBuilding(game, player, input.placing.type, cell.x, cell.y);
     drawPlacementGhost(ctx, cam, cell, input.placing.footprint, legal, TILE);
   }
+
+  // On-screen command bar (touch-first, also clickable with the mouse).
+  input.commandBarButtons = layoutCommandBar(input.selection.size > 0, cam.viewW, cam.viewH);
+  drawCommandBar(ctx, input.commandBarButtons, input);
 
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, 0, 430, 22);

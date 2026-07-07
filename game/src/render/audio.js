@@ -140,3 +140,12 @@ export function toggleMute(audio) {
   audio.muted = !audio.muted;
   return audio.muted;
 }
+
+// iOS suspends the AudioContext until a user gesture; call this from the
+// first touch/click so sound actually plays on iPad.
+export function resumeAudio(audio) {
+  ensureContext(audio);
+  if (audio.ctx && audio.ctx.state === 'suspended') {
+    audio.ctx.resume();
+  }
+}

@@ -27,7 +27,22 @@ enemy AI difficulty, starting credits, and map seed → START GAME.
 > ES modules can't load over `file://`, which is why the one-line server is needed.
 > macOS ships `python3`, so the command above works out of the box on a Mac.
 
-### Controls
+### Playing on iPad
+
+Open the same URL in Safari on the iPad, then **Share → Add to Home Screen** — the game
+installs as a fullscreen landscape app. Touch controls:
+
+| Gesture | Action |
+|---|---|
+| Tap own unit/building | Select |
+| Tap ground / enemy (with selection) | Move / attack |
+| Drag from empty ground | Box-select |
+| Two-finger drag | Pan the camera |
+| Long-press (with selection) | Attack-move |
+| Bottom command bar | Stop, attack-move, deploy, harvest, repair, sell, pause |
+| Tap minimap / sidebar | Jump camera / build & place |
+
+### Mouse & keyboard controls
 
 | Input | Action |
 |---|---|
