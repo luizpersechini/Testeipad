@@ -20,6 +20,7 @@ import {
   tickProduction, startProduction, cancelProduction, placeReadyBuilding,
 } from './production.js';
 import { tickAI } from './ai.js';
+import { createFog, tickFog } from './fog.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -36,10 +37,11 @@ const REPATH_COOLDOWN = 8; // ticks between re-path attempts when blocked
 const MAX_REPATHS = 3;
 
 export function createGame(seed, { startingCredits = 5000 } = {}) {
+  const world = createWorld(seed);
   return {
     seed,
     rng: createRng(seed),
-    world: createWorld(seed),
+    world,
     store: createStore(),
     tick: 0,
     events: [], // per-tick render events (shots, hits, deaths); cleared each tick
@@ -48,6 +50,7 @@ export function createGame(seed, { startingCredits = 5000 } = {}) {
       { credits: startingCredits }, // Nod
       { credits: 0 }, // Neutral
     ],
+    fog: [createFog(world), createFog(world), null], // per-house; neutral sees nothing
   };
 }
 
@@ -217,6 +220,7 @@ export function gameTick(game, commands = []) {
   tickProduction(game);
   tickRepairs(game);
   tickAI(game);
+  tickFog(game);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
     tickCombat(game, e);

@@ -121,8 +121,9 @@ let shownCredits = 0;
 function render() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawMap(ctx, world, cam, registry);
-  drawEntities(ctx, store, cam, registry, input.selection, game.tick);
+  const fogMap = game.fog[HouseType.GDI];
+  drawMap(ctx, world, cam, registry, fogMap);
+  drawEntities(ctx, store, cam, registry, input.selection, game.tick, game, HouseType.GDI);
   drawProjectiles(ctx, store, cam);
   drawEffects(ctx, effects, cam, registry, game.tick);
   drawDragBox(ctx, input.drag);
@@ -131,7 +132,7 @@ function render() {
   const sbx = canvas.width - SIDEBAR_W;
   ctx.fillStyle = '#1e1e1e';
   ctx.fillRect(sbx, 0, SIDEBAR_W, canvas.height);
-  drawMinimap(ctx, minimap, world, cam);
+  drawMinimap(ctx, minimap, world, cam, fogMap);
 
   // Credits ticker (rolls toward the real value like the original).
   const house = game.houses[HouseType.GDI];

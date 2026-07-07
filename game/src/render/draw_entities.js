@@ -5,6 +5,7 @@ import { TILE, HouseType } from '../sim/constants.js';
 import { EntityKind, facingTo8 } from '../sim/entity.js';
 import { SHEET_DEFS, vehicleFrame, infantryFrame, buildingFrame } from './assets.js';
 import { statsFor } from '../sim/stats.js';
+import { entityVisibleTo } from '../sim/fog.js';
 
 const FACTION_PREFIX = {
   [HouseType.GDI]: 'gdi',
@@ -50,9 +51,12 @@ function walkFrameOf(e, tick) {
   return ((tick / 3) | 0) % 3;
 }
 
-export function drawEntities(ctx, store, cam, registry, selection, tick) {
+// game/viewer: pass the sim game and the viewing house to hide what the fog
+// hides (omit them to draw everything, e.g. in tests).
+export function drawEntities(ctx, store, cam, registry, selection, tick, game = null, viewer = null) {
   for (const e of store.entities.values()) {
     if (e.kind === EntityKind.PROJECTILE) continue;
+    if (game && viewer !== null && !entityVisibleTo(game, viewer, e)) continue;
     const { x: sx, y: sy } = screenPos(e, cam);
     if (sx < -TILE * 2 || sy < -TILE * 2 || sx > cam.viewW + TILE || sy > cam.viewH + TILE) continue;
 

@@ -197,3 +197,12 @@ browser game now runs a Nod AI by default (?ai=easy|normal|hard|off). Tests: 126
 Notes: ai.js<->economy.js import cycle resolves cleanly (function bindings, no
 top-level use). Reaction-time knob folded into waveCooldown rather than a separate
 timer.
+
+## 2026-07-07 — M7.1
+Did: sim/fog.js — per-house shroud/fogged/visible maps recomputed every 5 ticks
+(visible decays to fogged, live sight sources re-reveal from footprint centers);
+entityVisibleTo (enemy units need VISIBLE, enemy buildings linger on FOGGED ground);
+renderer: black shroud + dim fog veil in draw_map, hidden enemies in draw_entities,
+fogged minimap. Tests: 131 pass (5 new).
+Notes: fog full-recompute is O(entities * sight²) every 5 ticks — cheap. Buildings
+on fogged ground show live hp; original froze last-seen state. Minor fidelity gap.

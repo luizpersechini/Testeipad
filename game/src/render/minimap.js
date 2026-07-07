@@ -39,7 +39,8 @@ export function minimapToWorldPx(layout, world, px, py) {
   };
 }
 
-export function drawMinimap(ctx, layout, world, cam) {
+// fogMap: viewing house's fog array (null = draw everything).
+export function drawMinimap(ctx, layout, world, cam, fogMap = null) {
   ctx.fillStyle = '#000';
   ctx.fillRect(layout.x - 2, layout.y - 2, layout.w + 4, layout.h + 4);
 
@@ -49,6 +50,7 @@ export function drawMinimap(ctx, layout, world, cam) {
   for (let y = 0; y < world.h; y++) {
     for (let x = 0; x < world.w; x++) {
       const i = idx(world, x, y);
+      if (fogMap && fogMap[i] === 0) continue; // shroud stays black
       ctx.fillStyle = world.tiberium[i] > 0
         ? MINIMAP_TIBERIUM
         : (MINIMAP_COLORS[world.terrain[i]] ?? '#f0f');
@@ -57,6 +59,10 @@ export function drawMinimap(ctx, layout, world, cam) {
         layout.y + y * layout.cellH,
         cw, ch,
       );
+      if (fogMap && fogMap[i] === 1) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(layout.x + x * layout.cellW, layout.y + y * layout.cellH, cw, ch);
+      }
     }
   }
 

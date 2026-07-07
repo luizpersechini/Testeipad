@@ -4,6 +4,7 @@ import { TILE, TerrainType } from '../sim/constants.js';
 import { idx } from '../sim/world.js';
 import { visibleCells } from './camera.js';
 import { tiberiumVariant, TILE_VARIANTS } from './assets.js';
+import { SHROUD, FOGGED } from '../sim/fog.js';
 
 // Fallback colors when tile art is missing.
 const TERRAIN_COLORS = {
@@ -25,14 +26,22 @@ function cellVariant(x, y) {
   return ((x * 7 + y * 13) >>> 0) % TILE_VARIANTS;
 }
 
-export function drawMap(ctx, world, cam, registry) {
+// fogMap: the viewing house's fog array (or null to disable fog).
+export function drawMap(ctx, world, cam, registry, fogMap = null) {
   const { x0, y0, x1, y1 } = visibleCells(cam, world);
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const i = idx(world, x, y);
-      const terrain = world.terrain[i];
       const sx = x * TILE - cam.x;
       const sy = y * TILE - cam.y;
+
+      // Shrouded ground is pure black; skip the terrain work entirely.
+      if (fogMap && fogMap[i] === SHROUD) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        continue;
+      }
+      const terrain = world.terrain[i];
 
       const tileName = TERRAIN_TILE_NAMES[terrain];
       const img = registry?.tiles?.[tileName]?.[cellVariant(x, y)];
@@ -60,6 +69,12 @@ export function drawMap(ctx, world, cam, registry) {
           ctx.fillStyle = TIBERIUM_FALLBACK;
           ctx.fillRect(sx + inset, sy + inset, TILE - inset * 2, TILE - inset * 2);
         }
+      }
+
+      // Previously-seen ground sits under a dim veil.
+      if (fogMap && fogMap[i] === FOGGED) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(sx, sy, TILE, TILE);
       }
     }
   }
