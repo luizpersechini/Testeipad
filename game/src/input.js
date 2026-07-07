@@ -5,6 +5,7 @@ import { TILE, HouseType } from './sim/constants.js';
 import { EntityKind } from './sim/entity.js';
 import {
   moveCommand, stopCommand, attackCommand, attackMoveCommand, forceAttackCommand,
+  deployCommand, harvestCommand,
 } from './sim/commands.js';
 import { screenToWorld, screenToCell } from './render/camera.js';
 import { pointInMinimap } from './render/minimap.js';
@@ -148,6 +149,10 @@ export function wireInput(canvas, input, deps) {
     if (e.key === 's' && input.selection.size > 0) {
       input.commandQueue.push(stopCommand([...input.selection]));
       input.attackMoveArmed = false;
+    } else if (e.key === 'd' && input.selection.size > 0) {
+      input.commandQueue.push(deployCommand([...input.selection]));
+    } else if (e.key === 'h' && input.selection.size > 0) {
+      input.commandQueue.push(harvestCommand([...input.selection]));
     } else if (e.key === 'a' || e.key === 'A') {
       input.attackMoveArmed = input.selection.size > 0;
     } else if (e.key === 'Escape') {

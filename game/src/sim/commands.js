@@ -29,3 +29,8 @@ export function forceAttackCommand(ids, x, y) {
 export function harvestCommand(ids) {
   return { type: 'harvest', ids: [...ids] };
 }
+
+// Deploy an MCV into a Construction Yard on the spot.
+export function deployCommand(ids) {
+  return { type: 'deploy', ids: [...ids] };
+}

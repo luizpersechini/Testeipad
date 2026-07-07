@@ -14,6 +14,7 @@ import {
 import {
   tickTiberium, tickHarvester, orderHarvest, tickPower,
 } from './economy.js';
+import { deployMcv } from './placement.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -97,6 +98,9 @@ function applyCommand(game, cmd) {
       break;
     case 'harvest':
       for (const id of cmd.ids) orderHarvest(game, id);
+      break;
+    case 'deploy':
+      for (const id of cmd.ids) deployMcv(game, id);
       break;
     default:
       break;

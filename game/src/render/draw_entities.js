@@ -3,7 +3,8 @@
 
 import { TILE, HouseType } from '../sim/constants.js';
 import { EntityKind, facingTo8 } from '../sim/entity.js';
-import { SHEET_DEFS, vehicleFrame, infantryFrame } from './assets.js';
+import { SHEET_DEFS, vehicleFrame, infantryFrame, buildingFrame } from './assets.js';
+import { statsFor } from '../sim/stats.js';
 
 const FACTION_PREFIX = {
   [HouseType.GDI]: 'gdi',
@@ -54,6 +55,30 @@ export function drawEntities(ctx, store, cam, registry, selection, tick) {
     if (e.kind === EntityKind.PROJECTILE) continue;
     const { x: sx, y: sy } = screenPos(e, cam);
     if (sx < -TILE * 2 || sy < -TILE * 2 || sx > cam.viewW + TILE || sy > cam.viewH + TILE) continue;
+
+    // Buildings: draw from the buildings sheet, scaled to the footprint.
+    if (e.kind === EntityKind.BUILDING) {
+      const [fw, fh] = e.footprint;
+      const w = fw * TILE;
+      const h = fh * TILE;
+      const bSheet = registry?.sheets?.buildings;
+      const spriteName = statsFor(e)?.sprite;
+      const f = bSheet?.img && spriteName
+        ? buildingFrame(SHEET_DEFS.buildings, e.owner === HouseType.NOD ? 1 : 0, spriteName)
+        : null;
+      if (f) {
+        ctx.drawImage(bSheet.img, f.sx, f.sy, f.sw, f.sh, sx, sy, w, h);
+      } else {
+        ctx.fillStyle = FACTION_COLOR[e.owner] ?? '#f0f';
+        ctx.fillRect(sx + 2, sy + 2, w - 4, h - 4);
+        ctx.strokeStyle = '#111';
+        ctx.strokeRect(sx + 2.5, sy + 2.5, w - 5, h - 5);
+      }
+      const selected = selection?.has(e.id);
+      if (selected) drawSelectionBrackets(ctx, sx, sy, Math.max(w, h));
+      if (selected || e.hp < e.maxHp) drawHealthBar(ctx, sx + 2, sy, w - 4, e);
+      continue;
+    }
 
     const prefix = FACTION_PREFIX[e.owner];
     const sheetName = prefix ? `${prefix}_${e.sprite ?? e.type}` : null;

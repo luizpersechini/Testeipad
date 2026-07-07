@@ -139,3 +139,13 @@ buildings so defensive towers auto-fire via existing combat, tower_rocket weapon
 Tests: 96 pass (6 new).
 Notes: M4 milestone complete. Obelisk uses guard_tower art placeholder. comm_center
 values partially reconstructed (grep missed the HQ block) — verify against BDATA later.
+
+## 2026-07-07 — M5.1
+Did: multi-cell footprints in entity spawn/despawn (atomic claim of the whole
+rectangle), sim/placement.js (footprintClear: bounds/terrain/occupancy/tiberium;
+adjacency within 3 cells of a friendly building, first building exempt;
+placeBuilding; deployMcv with exact-restore on blocked deploy), deployCommand +
+D hotkey, H hotkey for harvest, buildings render from the buildings sheet scaled
+to footprint. Tests: 102 pass (6 new).
+Notes: building x,y is top-left; combat centerDist treats it as a point — big
+buildings are slightly "closer" on their top-left. Cosmetic for now.

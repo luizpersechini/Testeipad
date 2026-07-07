@@ -32,14 +32,20 @@ export function count(store) {
   return store.entities.size;
 }
 
-// props: { kind, type, owner, x, y, hp, facing? }
-// Returns the new entity id, or NO_ENTITY if the target cell is blocked for
-// an occupying kind.
+// props: { kind, type, owner, x, y, hp, facing?, footprint? }
+// footprint [w, h] (buildings): (x, y) is the top-left cell and every cell of
+// the rectangle is claimed. Returns the new entity id, or NO_ENTITY if any
+// needed cell is blocked for an occupying kind.
 export function spawn(store, world, props) {
   const { kind, x, y } = props;
+  const [fw, fh] = props.footprint ?? [1, 1];
   if (occupies(kind)) {
-    if (!inBounds(world, x, y)) return NO_ENTITY;
-    if (world.occupancy[idx(world, x, y)] !== NO_ENTITY) return NO_ENTITY;
+    for (let dy = 0; dy < fh; dy++) {
+      for (let dx = 0; dx < fw; dx++) {
+        if (!inBounds(world, x + dx, y + dy)) return NO_ENTITY;
+        if (world.occupancy[idx(world, x + dx, y + dy)] !== NO_ENTITY) return NO_ENTITY;
+      }
+    }
   }
   const id = store.nextId++;
   const entity = {
@@ -58,10 +64,15 @@ export function spawn(store, world, props) {
     path: null, // filled by pathfinding
     target: NO_ENTITY,
     reload: 0, // ticks until the weapon can fire again
+    footprint: [fw, fh],
   };
   store.entities.set(id, entity);
   if (occupies(kind)) {
-    world.occupancy[idx(world, x, y)] = id;
+    for (let dy = 0; dy < fh; dy++) {
+      for (let dx = 0; dx < fw; dx++) {
+        world.occupancy[idx(world, x + dx, y + dy)] = id;
+      }
+    }
   }
   return id;
 }
@@ -70,9 +81,12 @@ export function despawn(store, world, id) {
   const entity = store.entities.get(id);
   if (!entity) return false;
   if (occupies(entity.kind)) {
-    const i = idx(world, entity.x, entity.y);
-    if (world.occupancy[i] === id) {
-      world.occupancy[i] = NO_ENTITY;
+    const [fw, fh] = entity.footprint;
+    for (let dy = 0; dy < fh; dy++) {
+      for (let dx = 0; dx < fw; dx++) {
+        const i = idx(world, entity.x + dx, entity.y + dy);
+        if (world.occupancy[i] === id) world.occupancy[i] = NO_ENTITY;
+      }
     }
   }
   store.entities.delete(id);
