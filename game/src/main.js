@@ -9,6 +9,9 @@ import { createCamera, moveCamera, centerCameraOn, clampCamera } from './render/
 import { drawMap } from './render/draw_map.js';
 import { createMinimapLayout, minimapToWorldPx, drawMinimap } from './render/minimap.js';
 import { drawEntities, drawDragBox } from './render/draw_entities.js';
+import {
+  createEffects, spawnFromEvents, pruneEffects, drawEffects, drawProjectiles,
+} from './render/draw_effects.js';
 import { createInputState, wireInput } from './input.js';
 
 const canvas = document.getElementById('game');
@@ -21,6 +24,7 @@ const { world, store } = game;
 const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, world.w, world.h);
 const minimap = createMinimapLayout(canvas.width, SIDEBAR_W, world);
 const input = createInputState();
+const effects = createEffects();
 
 // Temporary starting forces until scenarios land (M5/M8).
 const [gdiStart, nodStart] = world.startPositions;
@@ -104,6 +108,8 @@ function render() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawMap(ctx, world, cam, registry);
   drawEntities(ctx, store, cam, registry, input.selection, game.tick);
+  drawProjectiles(ctx, store, cam);
+  drawEffects(ctx, effects, cam, registry, game.tick);
   drawDragBox(ctx, input.drag);
 
   // Sidebar panel.
@@ -127,6 +133,8 @@ function frame(now) {
   if (accumulator > 250) accumulator = 250; // background-tab pause guard
   while (accumulator >= MS_PER_TICK) {
     gameTick(game, input.commandQueue.splice(0));
+    spawnFromEvents(effects, game.events, game.tick);
+    pruneEffects(effects, game.tick);
     accumulator -= MS_PER_TICK;
   }
   updateCamera();

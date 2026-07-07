@@ -54,6 +54,7 @@ function applyDamage(game, target, weaponId, rawDamage, attackerId) {
   const stats = statsFor(target);
   const dealt = modifyDamage(rawDamage, weaponId, stats?.armor ?? 'steel');
   target.hp -= dealt;
+  target.lastAttacker = attackerId; // enables return fire beyond sight range
   game.events.push({ type: 'hit', x: target.x, y: target.y, targetId: target.id });
   if (target.hp <= 0) {
     game.events.push({
@@ -116,6 +117,17 @@ export function tickCombat(game, e) {
   const weapon = weaponOf(e);
   if (!weapon) return;
   if (e.reload > 0) e.reload--;
+
+  // Return fire: when hit, an idle armed unit fights back even if the
+  // attacker sits beyond sight range (original guard-mission behavior).
+  if (e.state === 'idle' && e.lastAttacker) {
+    const aggressor = get(game.store, e.lastAttacker);
+    e.lastAttacker = null;
+    if (aggressor && aggressor.hp > 0 && aggressor.owner !== e.owner) {
+      orderAttack(game, e.id, aggressor.id);
+      return;
+    }
+  }
 
   // Guard: idle armed entities acquire targets within sight range.
   if (e.state === 'idle' && (game.tick + e.id) % GUARD_SCAN_INTERVAL === 0) {

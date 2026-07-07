@@ -99,3 +99,12 @@ determinism).
 Notes: turret facing snaps instantly (gradual turret turn = polish). Two test
 expectations were corrected, not code: authentic AP-vs-infantry (0x40) makes tanks
 slow infantry-killers, and guard return fire is legitimate chip damage.
+
+## 2026-07-07 — M3.3
+Did: render/draw_effects.js — event-driven effect system (explosion 6-frame anim from
+effects sheet, muzzle flash at barrel tip, hit sparks; pure spawn/prune/frame logic
+node-tested), projectile rendering by type color; return fire in combat.js via
+lastAttacker (works beyond sight range — artillery can't shell with impunity);
+right-click on an enemy now issues attack instead of move. Tests: 79 pass (4 new).
+Notes: effects list is unbounded between prunes in huge battles — prune runs per tick
+so it's fine; muzzle uses a dot, not the muzzle_flash.png star (asset hookup = polish).

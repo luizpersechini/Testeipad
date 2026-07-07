@@ -3,7 +3,7 @@
 
 import { TILE, HouseType } from './sim/constants.js';
 import { EntityKind } from './sim/entity.js';
-import { moveCommand, stopCommand } from './sim/commands.js';
+import { moveCommand, stopCommand, attackCommand } from './sim/commands.js';
 import { screenToWorld, screenToCell } from './render/camera.js';
 import { pointInMinimap } from './render/minimap.js';
 
@@ -75,8 +75,15 @@ export function wireInput(canvas, input, deps) {
         input.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
       }
     } else if (e.button === 2 && input.selection.size > 0 && p.x < cam.viewW) {
-      const cell = screenToCell(cam, p.x, p.y);
-      input.commandQueue.push(moveCommand([...input.selection], cell.x, cell.y));
+      // Right-click: attack an enemy under the cursor, otherwise move there.
+      const wp = screenToWorld(cam, p.x, p.y);
+      const hit = pickEntityAt(store, wp.x, wp.y);
+      if (hit && hit.owner !== HouseType.GDI) {
+        input.commandQueue.push(attackCommand([...input.selection], hit.id));
+      } else {
+        const cell = screenToCell(cam, p.x, p.y);
+        input.commandQueue.push(moveCommand([...input.selection], cell.x, cell.y));
+      }
     }
   });
 
