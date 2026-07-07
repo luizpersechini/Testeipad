@@ -65,7 +65,7 @@ export function drawProjectiles(ctx, store, cam) {
 
 export function drawEffects(ctx, effects, cam, registry, tick) {
   const sheet = registry?.sheets?.effects;
-  const def = SHEET_DEFS.effects;
+  const def = sheet?.def ?? SHEET_DEFS.effects;
   for (const fx of effects.list) {
     const sx = fx.x * TILE - cam.x;
     const sy = fx.y * TILE - cam.y;

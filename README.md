@@ -43,6 +43,33 @@ enemy AI difficulty, starting credits, and map seed → START GAME.
 | F2–F4, F6–F8 | Save / load (3 slots, localStorage) |
 | Sidebar | Click to build; click READY item to place it (ghost shows legality) |
 
+## Using the original graphics, sounds and videos
+
+EA released Tiberian Dawn as **official freeware in 2007**, so the original assets are
+legally downloadable — they just aren't committed to this repo. To upgrade the
+placeholder art to the real 1995 sprites on your machine:
+
+1. **Download the freeware game** (any one of these official community mirrors):
+   - CnCNet: https://cncnet.org/command-and-conquer → *Download* (installer with game files)
+   - C&C Community: https://cnc.community/tiberian-dawn/how-to-play (installer + optional campaign-video pack)
+   - CNCNZ: https://cncnz.com/downloads/tiberian-dawn-downloads/ (original GDI/Nod freeware ISOs)
+2. **Locate the game files** — you need the `.MIX` archives (`CONQUER.MIX`,
+   `TEMPERAT.MIX`, ideally also the sound MIXes; mount an ISO or unzip the installer
+   to find them).
+3. **Import them:**
+   ```bash
+   pip install pillow          # once
+   brew install ffmpeg         # optional: converts original sounds and videos
+   python3 tools/cnc/import_assets.py /path/to/the/game/files
+   ```
+
+The importer decodes the Westwood formats (MIX archives, SHP sprites with LCW/XOR
+compression, 6-bit palettes, and — via ffmpeg — AUD sounds and VQA videos) and writes
+web-ready sprite sheets to `assets/original/`. The game automatically prefers those
+over the placeholders on the next reload. `assets/original/` is git-ignored: the
+freeware assets are for local play and are not redistributed through this repo or
+the GitHub Pages deployment.
+
 ## What's implemented
 
 - Deterministic sim core at the original's 15 ticks/sec: same seed + same commands

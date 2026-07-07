@@ -93,6 +93,30 @@ function loadImage(src) {
   });
 }
 
+// Original-asset override: tools/cnc/import_assets.py writes extracted
+// freeware sprites plus a manifest into assets/original/ (git-ignored).
+// When that manifest exists, its sheets replace the placeholder art.
+const ORIGINAL_BASE = '../assets/original/';
+
+async function loadOriginalOverrides(registry) {
+  let manifest;
+  try {
+    const res = await fetch(`${ORIGINAL_BASE}manifest.json`);
+    if (!res.ok) return;
+    manifest = await res.json();
+  } catch {
+    return; // no original assets installed; placeholders remain
+  }
+  const jobs = [];
+  for (const [name, def] of Object.entries(manifest.sheets ?? {})) {
+    jobs.push(loadImage(ORIGINAL_BASE + def.file).then((img) => {
+      if (img) registry.sheets[name] = { img, def };
+    }));
+  }
+  await Promise.all(jobs);
+  registry.usingOriginals = jobs.length > 0;
+}
+
 // Loads everything; resolves to a registry. Every lookup can return a null
 // image — draw code falls back to colored rects so the game never white-screens.
 export async function loadAssets() {
@@ -140,5 +164,6 @@ export async function loadAssets() {
   }
 
   await Promise.all(jobs);
+  await loadOriginalOverrides(registry);
   return registry;
 }
