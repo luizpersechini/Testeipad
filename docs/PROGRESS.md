@@ -158,3 +158,14 @@ ring cell around their factory, finished buildings wait as 'ready' for placeComm
 build/cancelbuild/placebuilding commands wired. Tests: 110 pass (8 new).
 Notes: rally points deferred (plan mentions them in M5.2 — moved to M5.3/M9 polish;
 factory exit search is deterministic ring scan). All 8 first-time-through: zero fails.
+
+## 2026-07-07 — M5.3
+Did: render/sidebar.js — build menu grouped by category (structures/infantry/vehicles)
+with icons, cost labels, progress sweep + %, flashing READY, blocked-sibling dimming;
+pure layout + hit-test tested in node. Input: click to build, click in-progress to
+cancel, click READY -> placement mode with green/red ghost (right-click/Esc cancels).
+main.js starter scene upgraded to real bases (yard + power plant each side).
+Tests: 113 pass (3 new). **The full base-building loop is now playable in the browser:
+harvest -> credits -> build -> place -> produce units -> fight.**
+Notes: single shared 'GDI is the human' assumption baked into input/main — parametrize
+when menus (M8.1) add faction select.

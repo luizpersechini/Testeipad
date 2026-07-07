@@ -10,6 +10,11 @@ import { drawMap } from './render/draw_map.js';
 import { createMinimapLayout, minimapToWorldPx, drawMinimap } from './render/minimap.js';
 import { drawEntities, drawDragBox } from './render/draw_entities.js';
 import {
+  layoutSidebarItems, drawSidebar, drawPlacementGhost,
+} from './render/sidebar.js';
+import { placeBuilding, canPlaceBuilding } from './sim/placement.js';
+import { screenToCell } from './render/camera.js';
+import {
   createEffects, spawnFromEvents, pruneEffects, drawEffects, drawProjectiles,
 } from './render/draw_effects.js';
 import { createInputState, wireInput } from './input.js';
@@ -26,29 +31,31 @@ const minimap = createMinimapLayout(canvas.width, SIDEBAR_W, world);
 const input = createInputState();
 const effects = createEffects();
 
-// Temporary starting forces until scenarios land (M5/M8).
+// Starting bases until scenarios land (M8): yard + power for each side,
+// plus a small escort force.
 const [gdiStart, nodStart] = world.startPositions;
-function spawnGroup(owner, start, types) {
-  types.forEach(([kind, type, hp], i) => {
+function spawnBase(owner, start, escort) {
+  placeBuilding(game, owner, 'construction_yard', start.x - 1, start.y - 1, { ignoreAdjacency: true });
+  placeBuilding(game, owner, 'power_plant', start.x + 3, start.y - 1);
+  escort.forEach(([kind, type, hp], i) => {
     spawn(store, world, {
       kind, type, owner, hp,
-      x: start.x + (i % 3) - 1,
-      y: start.y + ((i / 3) | 0) + 2,
+      x: start.x + (i % 4) - 1,
+      y: start.y + ((i / 4) | 0) + 3,
     });
   });
 }
-spawnGroup(HouseType.GDI, gdiStart, [
+spawnBase(HouseType.GDI, gdiStart, [
   [EntityKind.UNIT, 'medium_tank', 400],
   [EntityKind.UNIT, 'medium_tank', 400],
-  [EntityKind.UNIT, 'mammoth_tank', 600],
-  [EntityKind.INFANTRY, 'minigunner', 50],
+  [EntityKind.UNIT, 'harvester', 600],
   [EntityKind.INFANTRY, 'minigunner', 50],
   [EntityKind.INFANTRY, 'rocket_soldier', 45],
 ]);
-spawnGroup(HouseType.NOD, nodStart, [
-  [EntityKind.UNIT, 'light_tank', 300],
+spawnBase(HouseType.NOD, nodStart, [
   [EntityKind.UNIT, 'light_tank', 300],
   [EntityKind.UNIT, 'stealth_tank', 180],
+  [EntityKind.UNIT, 'harvester', 600],
   [EntityKind.INFANTRY, 'minigunner', 50],
   [EntityKind.INFANTRY, 'flamethrower', 60],
 ]);
@@ -149,6 +156,17 @@ function render() {
   ctx.fillStyle = '#888';
   ctx.font = '10px monospace';
   ctx.fillText(house.lowPower ? 'LOW POWER' : 'POWER', sbx + 8, pbY + 22);
+
+  // Build menu.
+  input.sidebarItems = layoutSidebarItems(game, HouseType.GDI, sbx, SIDEBAR_W, pbY + 32);
+  drawSidebar(ctx, input.sidebarItems, registry, game.tick);
+
+  // Placement ghost under the cursor.
+  if (input.placing && mouseX >= 0 && mouseX < cam.viewW) {
+    const cell = screenToCell(cam, mouseX, mouseY);
+    const legal = canPlaceBuilding(game, HouseType.GDI, input.placing.type, cell.x, cell.y);
+    drawPlacementGhost(ctx, cam, cell, input.placing.footprint, legal, TILE);
+  }
 
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, 0, 430, 30);

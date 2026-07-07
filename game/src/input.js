@@ -5,8 +5,10 @@ import { TILE, HouseType } from './sim/constants.js';
 import { EntityKind } from './sim/entity.js';
 import {
   moveCommand, stopCommand, attackCommand, attackMoveCommand, forceAttackCommand,
-  deployCommand, harvestCommand,
+  deployCommand, harvestCommand, buildCommand, cancelBuildCommand, placeCommand,
 } from './sim/commands.js';
+import { hitSidebarItem } from './render/sidebar.js';
+import { BUILDING_TYPES } from './sim/data/buildings.js';
 import { screenToWorld, screenToCell } from './render/camera.js';
 import { pointInMinimap } from './render/minimap.js';
 
@@ -17,6 +19,8 @@ export function createInputState() {
     drag: null, // {x0, y0, x1, y1} in screen px while left button held
     attackMoveArmed: false, // A pressed; next left-click is attack-move
     groups: new Map(), // digit -> array of entity ids
+    placing: null, // {type, footprint} while positioning a ready building
+    sidebarItems: [], // refreshed each frame by main.js
   };
 }
 
@@ -88,7 +92,29 @@ export function wireInput(canvas, input, deps) {
         centerCameraOn(cam, w.x, w.y);
         return;
       }
-      if (p.x >= cam.viewW) return;
+      if (p.x >= cam.viewW) {
+        // Sidebar build menu.
+        const item = hitSidebarItem(input.sidebarItems, p.x, p.y);
+        if (item && !item.blocked) {
+          if (item.queued?.ready) {
+            input.placing = {
+              type: item.queued.type,
+              footprint: BUILDING_TYPES[item.queued.type].footprint,
+            };
+          } else if (item.queued) {
+            input.commandQueue.push(cancelBuildCommand(HouseType.GDI, item.category));
+          } else {
+            input.commandQueue.push(buildCommand(HouseType.GDI, item.category, item.type));
+          }
+        }
+        return;
+      }
+      if (input.placing) {
+        const cell = screenToCell(cam, p.x, p.y);
+        input.commandQueue.push(placeCommand(HouseType.GDI, cell.x, cell.y));
+        input.placing = null;
+        return;
+      }
       if (input.attackMoveArmed && input.selection.size > 0) {
         // A + click: attack-move to the clicked cell.
         input.attackMoveArmed = false;
@@ -103,6 +129,8 @@ export function wireInput(canvas, input, deps) {
         return;
       }
       input.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+    } else if (e.button === 2 && input.placing) {
+      input.placing = null; // right-click cancels placement mode
     } else if (e.button === 2 && input.selection.size > 0 && p.x < cam.viewW) {
       // Right-click: attack an enemy under the cursor, otherwise move there.
       const wp = screenToWorld(cam, p.x, p.y);
@@ -157,6 +185,7 @@ export function wireInput(canvas, input, deps) {
       input.attackMoveArmed = input.selection.size > 0;
     } else if (e.key === 'Escape') {
       input.attackMoveArmed = false;
+      input.placing = null;
       input.selection.clear();
     } else if (e.key >= '1' && e.key <= '9') {
       const digit = e.key;
