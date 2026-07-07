@@ -140,7 +140,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 
 ### M8 — Menus & game shell
 - [x] M8.1 `render/menu.js`: main menu → skirmish setup (faction, color, credits, difficulty, map seed) → game → end screen → menu. Pause (P/Esc). Port look from the old C++ menu design.
-- [ ] M8.2 Save/load to localStorage (serialize sim state — it's already plain data), 3 slots.
+- [x] M8.2 Save/load to localStorage (serialize sim state — it's already plain data), 3 slots.
 
 ### M9 — Feel & polish
 - [ ] M9.1 Audio via WebAudio: synthesize placeholder SFX (shots, explosions, "unit ready", EVA-style beeps) — no copyrighted audio. Mute toggle.

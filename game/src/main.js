@@ -23,6 +23,7 @@ import {
   createMenu, layoutMenu, hitMenuItem, menuClick, drawMenu,
 } from './render/menu.js';
 import { createInputState, wireInput } from './input.js';
+import { serializeGame, deserializeGame } from './sim/save.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -100,11 +101,65 @@ const keys = new Set();
 let mouseX = -1;
 let mouseY = -1;
 
+// ── Save/load: F2/F3/F4 save slots 1-3, F6/F7/F8 load them ─────────────────
+
+const SAVE_KEY = (slot) => `cnc-td-save-${slot}`;
+
+function saveSlot(slot) {
+  const s = shell.session;
+  if (!s || s.game.winner !== null) return;
+  const blob = { player: s.player, game: serializeGame(s.game) };
+  try {
+    window.localStorage.setItem(SAVE_KEY(slot), JSON.stringify(blob));
+    s.toast = { text: `Saved to slot ${slot}`, until: s.game.tick + 30 };
+  } catch {
+    s.toast = { text: 'Save failed (storage full?)', until: s.game.tick + 30 };
+  }
+}
+
+function loadSlot(slot) {
+  const raw = window.localStorage.getItem(SAVE_KEY(slot));
+  if (!raw) {
+    if (shell.session) {
+      shell.session.toast = { text: `Slot ${slot} is empty`, until: shell.session.game.tick + 30 };
+    }
+    return;
+  }
+  const blob = JSON.parse(raw);
+  const game = deserializeGame(blob.game);
+  if (!game) return;
+  const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, game.world.w, game.world.h);
+  const start = game.world.startPositions[blob.player === HouseType.GDI ? 0 : 1];
+  centerCameraOn(cam, start.x * TILE, start.y * TILE);
+  shell.session = {
+    game,
+    cam,
+    player: blob.player,
+    minimap: createMinimapLayout(canvas.width, SIDEBAR_W, game.world),
+    input: createInputState(),
+    effects: createEffects(),
+    shownCredits: game.houses[blob.player].credits,
+    paused: false,
+    accumulator: 0,
+    toast: { text: `Loaded slot ${slot}`, until: game.tick + 30 },
+  };
+  menu.screen = 'game';
+}
+
 window.addEventListener('keydown', (e) => {
   keys.add(e.key);
   if (e.key.startsWith('Arrow')) e.preventDefault();
   if (shell.session && menu.screen === 'game' && (e.key === 'p' || e.key === 'P')) {
     shell.session.paused = !shell.session.paused;
+  }
+  const saveKeys = { F2: 1, F3: 2, F4: 3 };
+  const loadKeys = { F6: 1, F7: 2, F8: 3 };
+  if (saveKeys[e.key]) {
+    e.preventDefault();
+    saveSlot(saveKeys[e.key]);
+  } else if (loadKeys[e.key]) {
+    e.preventDefault();
+    loadSlot(loadKeys[e.key]);
   }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.key));
@@ -221,9 +276,18 @@ function renderGame(s) {
   ctx.fillStyle = '#c8ffc8';
   ctx.font = '12px monospace';
   ctx.fillText(
-    `tick ${game.tick}  sel ${input.selection.size}  A attack-move  S stop  P pause`,
+    `tick ${game.tick}  sel ${input.selection.size}  A attack-move  S stop  P pause  F2-F4 save  F6-F8 load`,
     8, 15,
   );
+
+  if (s.toast && game.tick < s.toast.until) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(canvas.width / 2 - 140, 40, 280, 26);
+    ctx.fillStyle = '#ffd24a';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.toast.text, canvas.width / 2, 57);
+    ctx.textAlign = 'left';
+  }
 
   if (s.paused && game.winner === null) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';

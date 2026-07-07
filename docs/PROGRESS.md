@@ -228,3 +228,12 @@ rewritten session-aware (player faction no longer hardcoded; listeners attach on
 read the live session). Tests: 139 pass (4 new).
 Notes: right-click cycles menu options backward. ?ai= URL param removed — difficulty
 now comes from the menu. Playing as Nod is fully supported end to end.
+
+## 2026-07-07 — M8.2
+Did: sim/save.js — full game serialization (typed arrays/Map/Set/rng state <-> JSON)
+with version gate; main.js localStorage slots (F2/F3/F4 save, F6/F7/F8 load) with
+toast feedback; loading rebuilds the whole session mid-match. Tests: 143 pass (4 new)
+including the gold test: a save/loaded game continues bit-identically for 800 ticks
+alongside the original, and survives a JSON round trip. M8 milestone complete.
+Notes: saves store the player's house; menu-based load UI (list slots with
+timestamps) would be nicer than F-keys — polish item.
