@@ -102,6 +102,7 @@ loadAssets().then((r) => {
 
 let accumulator = 0;
 let lastTime = performance.now();
+let shownCredits = 0;
 
 function render() {
   ctx.fillStyle = '#000';
@@ -113,9 +114,41 @@ function render() {
   drawDragBox(ctx, input.drag);
 
   // Sidebar panel.
+  const sbx = canvas.width - SIDEBAR_W;
   ctx.fillStyle = '#1e1e1e';
-  ctx.fillRect(canvas.width - SIDEBAR_W, 0, SIDEBAR_W, canvas.height);
+  ctx.fillRect(sbx, 0, SIDEBAR_W, canvas.height);
   drawMinimap(ctx, minimap, world, cam);
+
+  // Credits ticker (rolls toward the real value like the original).
+  const house = game.houses[HouseType.GDI];
+  shownCredits += Math.sign(house.credits - shownCredits)
+    * Math.min(Math.abs(house.credits - shownCredits), 7);
+  const mmBottom = minimap.y + minimap.h;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(sbx + 8, mmBottom + 8, SIDEBAR_W - 16, 22);
+  ctx.fillStyle = '#54d454';
+  ctx.font = 'bold 15px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(`$ ${Math.round(shownCredits)}`, sbx + SIDEBAR_W - 14, mmBottom + 24);
+  ctx.textAlign = 'left';
+
+  // Power bar: output vs drain.
+  const pbY = mmBottom + 38;
+  const pbW = SIDEBAR_W - 16;
+  const maxShown = Math.max(house.powerOutput, house.powerDrain, 100);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(sbx + 8, pbY, pbW, 10);
+  ctx.fillStyle = house.lowPower ? '#c03030' : '#30a030';
+  ctx.fillRect(sbx + 8, pbY, Math.round(pbW * house.powerOutput / maxShown), 10);
+  ctx.strokeStyle = '#e0e040'; // drain marker
+  const dx = sbx + 8 + Math.round(pbW * house.powerDrain / maxShown);
+  ctx.beginPath();
+  ctx.moveTo(dx, pbY - 2);
+  ctx.lineTo(dx, pbY + 12);
+  ctx.stroke();
+  ctx.fillStyle = '#888';
+  ctx.font = '10px monospace';
+  ctx.fillText(house.lowPower ? 'LOW POWER' : 'POWER', sbx + 8, pbY + 22);
 
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, 0, 430, 30);

@@ -11,7 +11,9 @@ import { statsFor } from './stats.js';
 import {
   tickCombat, orderAttack, orderAttackMove, orderForceAttack,
 } from './combat.js';
-import { tickTiberium, tickHarvester, orderHarvest } from './economy.js';
+import {
+  tickTiberium, tickHarvester, orderHarvest, tickPower,
+} from './economy.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -187,6 +189,7 @@ export function gameTick(game, commands = []) {
   game.events = [];
   for (const cmd of commands) applyCommand(game, cmd);
   tickTiberium(game);
+  tickPower(game);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
     tickCombat(game, e);

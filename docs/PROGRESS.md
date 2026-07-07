@@ -129,3 +129,13 @@ have degenerate periods, so coordinate sampling hit a lattice and growth NEVER f
 switched to high-bits scaling. (2) map-gen center clearing broke 180° symmetry (rotation
 center is 31.5, not 32) — made the cleared region a symmetric union.
 Notes: refineries are placeholder 1-cell buildings until M5.1 footprints.
+
+## 2026-07-07 — M4.2
+Did: sim/data/buildings.js (15 buildings from BDATA via game_data.cpp: hp/cost/power/
+footprints/armor/tech/weapons — towers, obelisk, temple, comm centers), tickPower()
+(damaged plants generate proportionally less, lowPower flag), statsFor covers
+buildings so defensive towers auto-fire via existing combat, tower_rocket weapon
+(WEAPON_TOW_TWO), sidebar: rolling credits ticker + power bar with drain marker.
+Tests: 96 pass (6 new).
+Notes: M4 milestone complete. Obelisk uses guard_tower art placeholder. comm_center
+values partially reconstructed (grep missed the HQ block) — verify against BDATA later.

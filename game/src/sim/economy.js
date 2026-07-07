@@ -44,6 +44,33 @@ export function tickTiberium(game) {
   }
 }
 
+// ── House power ──────────────────────────────────────────────────────────────
+
+// Recompute every house's power balance from its standing buildings.
+// Low power: drain exceeds output -> production slows (M5.2), radar dies.
+export function tickPower(game) {
+  for (const house of game.houses) {
+    house.powerOutput = 0;
+    house.powerDrain = 0;
+  }
+  for (const e of game.store.entities.values()) {
+    if (e.kind !== EntityKind.BUILDING || e.hp <= 0) continue;
+    const stats = statsFor(e);
+    if (!stats) continue;
+    const house = game.houses[e.owner];
+    if (!house) continue;
+    // Damaged plants produce proportionally less, like the original.
+    if (stats.power > 0) {
+      house.powerOutput += Math.round(stats.power * (e.hp / e.maxHp));
+    } else {
+      house.powerDrain += -stats.power;
+    }
+  }
+  for (const house of game.houses) {
+    house.lowPower = house.powerDrain > house.powerOutput;
+  }
+}
+
 // ── Harvester cycle ──────────────────────────────────────────────────────────
 
 // Nearest tiberium cell within radius; deterministic tie-break by scan order.

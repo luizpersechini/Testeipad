@@ -122,7 +122,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 
 ### M4 — Economy
 - [x] M4.1 Tiberium growth + spread per original logic (slow tick); harvester behavior: seek nearest tiberium, load (bail count), return to refinery, unload → credits. Tests: full harvest cycle yields expected credits deterministically.
-- [ ] M4.2 Credits + power model on the player house (`sim/economy.js`): power output/drain, low-power effects (slower production, radar off). Sidebar shows credits ticker + power bar.
+- [x] M4.2 Credits + power model on the player house (`sim/economy.js`): power output/drain, low-power effects (slower production, radar off). Sidebar shows credits ticker + power bar.
 
 ### M5 — Buildings & production
 - [ ] M5.1 Buildings as entities with footprints (multi-cell occupancy from BDATA), placement validity (adjacency to existing base, terrain clear), MCV deploy → Construction Yard.

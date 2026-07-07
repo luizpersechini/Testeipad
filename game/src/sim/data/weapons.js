@@ -47,6 +47,8 @@ export const WEAPONS = {
   artillery_shell: { warhead: 'he', damage: 150, rof: 65, range: 6, speed: 30, projectile: 'shell' },
   // WEAPON_OBELISK_LASER.
   obelisk_laser: { warhead: 'laser', damage: 200, rof: 90, range: 7.5, speed: 100, projectile: 'laser' },
+  // WEAPON_TOW_TWO (advanced guard tower rockets).
+  tower_rocket: { warhead: 'he', damage: 60, rof: 40, range: 6.5, speed: 40, projectile: 'missile' },
 };
 
 export function weaponData(id) {
