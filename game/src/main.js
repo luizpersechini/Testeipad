@@ -1,85 +1,111 @@
-// Boot: canvas setup and the fixed-timestep loop.
-// Sim ticks at a fixed 15/s (accumulator); rendering runs at requestAnimationFrame rate.
+// Game shell: main menu -> skirmish setup -> game -> end screen -> menu.
+// Sim ticks at a fixed 15/s (accumulator); rendering runs at rAF rate.
 
 import { MS_PER_TICK, TILE, HouseType } from './sim/constants.js';
 import { createGame, gameTick } from './sim/game.js';
 import { spawn, EntityKind } from './sim/entity.js';
-import { loadAssets } from './render/assets.js';
-import { createCamera, moveCamera, centerCameraOn, clampCamera } from './render/camera.js';
-import { drawMap } from './render/draw_map.js';
-import { createMinimapLayout, minimapToWorldPx, drawMinimap } from './render/minimap.js';
-import { drawEntities, drawDragBox } from './render/draw_entities.js';
-import {
-  layoutSidebarItems, drawSidebar, drawPlacementGhost,
-} from './render/sidebar.js';
 import { placeBuilding, canPlaceBuilding } from './sim/placement.js';
-import { screenToCell } from './render/camera.js';
+import { enableAI } from './sim/ai.js';
+import { loadAssets } from './render/assets.js';
+import {
+  createCamera, moveCamera, centerCameraOn, clampCamera, screenToCell,
+} from './render/camera.js';
+import { drawMap } from './render/draw_map.js';
+import { createMinimapLayout, drawMinimap } from './render/minimap.js';
+import { drawEntities, drawDragBox } from './render/draw_entities.js';
 import {
   createEffects, spawnFromEvents, pruneEffects, drawEffects, drawProjectiles,
 } from './render/draw_effects.js';
+import {
+  layoutSidebarItems, drawSidebar, drawPlacementGhost,
+} from './render/sidebar.js';
+import {
+  createMenu, layoutMenu, hitMenuItem, menuClick, drawMenu,
+} from './render/menu.js';
 import { createInputState, wireInput } from './input.js';
-import { enableAI } from './sim/ai.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false; // pixel art
 
 const SIDEBAR_W = 200;
-const game = createGame(42);
-const { world, store } = game;
-const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, world.w, world.h);
-const minimap = createMinimapLayout(canvas.width, SIDEBAR_W, world);
-const input = createInputState();
-const effects = createEffects();
 
-// Starting bases until scenarios land (M8): yard + power for each side,
-// plus a small escort force.
-const [gdiStart, nodStart] = world.startPositions;
-function spawnBase(owner, start, escort) {
-  placeBuilding(game, owner, 'construction_yard', start.x - 1, start.y - 1, { ignoreAdjacency: true });
-  placeBuilding(game, owner, 'power_plant', start.x + 3, start.y - 1);
-  escort.forEach(([kind, type, hp], i) => {
-    spawn(store, world, {
-      kind, type, owner, hp,
-      x: start.x + (i % 4) - 1,
-      y: start.y + ((i / 4) | 0) + 3,
+let registry = null; // assets may still be loading; draw code falls back to rects
+loadAssets().then((r) => {
+  registry = r;
+  if (r.missing.length) console.warn('Missing assets (using fallbacks):', r.missing);
+});
+
+// ── Session (one running match) ──────────────────────────────────────────────
+
+function startSession(settings) {
+  const player = settings.faction === 'nod' ? HouseType.NOD : HouseType.GDI;
+  const enemy = player === HouseType.GDI ? HouseType.NOD : HouseType.GDI;
+  const game = createGame(settings.seed, { startingCredits: settings.credits });
+  const { world } = game;
+
+  const starts = world.startPositions;
+  const playerStart = starts[player === HouseType.GDI ? 0 : 1];
+  const enemyStart = starts[player === HouseType.GDI ? 1 : 0];
+
+  const escort = (owner) => {
+    const heavy = owner === HouseType.GDI ? 'medium_tank' : 'light_tank';
+    const heavyHp = owner === HouseType.GDI ? 400 : 300;
+    return [
+      [EntityKind.UNIT, heavy, heavyHp],
+      [EntityKind.UNIT, heavy, heavyHp],
+      [EntityKind.INFANTRY, 'minigunner', 50],
+      [EntityKind.INFANTRY, 'minigunner', 50],
+      [EntityKind.INFANTRY, 'rocket_soldier', 45],
+    ];
+  };
+  for (const [owner, start] of [[player, playerStart], [enemy, enemyStart]]) {
+    placeBuilding(game, owner, 'construction_yard', start.x - 1, start.y - 1, { ignoreAdjacency: true });
+    placeBuilding(game, owner, 'power_plant', start.x + 3, start.y - 1);
+    escort(owner).forEach(([kind, type, hp], i) => {
+      spawn(game.store, world, {
+        kind, type, owner: owner, hp,
+        x: start.x + (i % 4) - 1,
+        y: start.y + ((i / 4) | 0) + 3,
+      });
     });
-  });
-}
-spawnBase(HouseType.GDI, gdiStart, [
-  [EntityKind.UNIT, 'medium_tank', 400],
-  [EntityKind.UNIT, 'medium_tank', 400],
-  [EntityKind.UNIT, 'harvester', 600],
-  [EntityKind.INFANTRY, 'minigunner', 50],
-  [EntityKind.INFANTRY, 'rocket_soldier', 45],
-]);
-spawnBase(HouseType.NOD, nodStart, [
-  [EntityKind.UNIT, 'light_tank', 300],
-  [EntityKind.UNIT, 'stealth_tank', 180],
-  [EntityKind.UNIT, 'harvester', 600],
-  [EntityKind.INFANTRY, 'minigunner', 50],
-  [EntityKind.INFANTRY, 'flamethrower', 60],
-]);
+  }
+  enableAI(game, enemy, settings.difficulty);
 
-// Nod is AI-controlled. Pick difficulty with ?ai=easy|normal|hard|off.
-const aiSetting = new URLSearchParams(window.location.search).get('ai') ?? 'normal';
-if (aiSetting !== 'off') {
-  enableAI(game, HouseType.NOD, ['easy', 'normal', 'hard'].includes(aiSetting) ? aiSetting : 'normal');
+  const cam = createCamera(canvas.width - SIDEBAR_W, canvas.height, world.w, world.h);
+  centerCameraOn(cam, playerStart.x * TILE, playerStart.y * TILE);
+
+  return {
+    game,
+    cam,
+    player,
+    minimap: createMinimapLayout(canvas.width, SIDEBAR_W, world),
+    input: createInputState(),
+    effects: createEffects(),
+    shownCredits: settings.credits,
+    paused: false,
+    accumulator: 0,
+  };
 }
 
-centerCameraOn(cam, gdiStart.x * TILE, gdiStart.y * TILE);
+// ── Shell state ──────────────────────────────────────────────────────────────
 
-wireInput(canvas, input, { cam, store, minimap, world, centerCameraOn, minimapToWorldPx });
+const menu = createMenu();
+const shell = { menu, session: null };
+wireInput(canvas, shell);
 
-// Camera scrolling (arrows + edge pan; WASD reserved for game hotkeys).
 const SCROLL_SPEED = 12;
 const EDGE_PAN_MARGIN = 24;
 const keys = new Set();
 let mouseX = -1;
 let mouseY = -1;
+
 window.addEventListener('keydown', (e) => {
   keys.add(e.key);
   if (e.key.startsWith('Arrow')) e.preventDefault();
+  if (shell.session && menu.screen === 'game' && (e.key === 'p' || e.key === 'P')) {
+    shell.session.paused = !shell.session.paused;
+  }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.key));
 canvas.addEventListener('mousemove', (e) => {
@@ -92,59 +118,73 @@ canvas.addEventListener('mouseleave', () => {
   mouseY = -1;
 });
 
-function updateCamera() {
+// Menu clicks (left cycles forward, right cycles back) + end-screen exit.
+canvas.addEventListener('mousedown', (e) => {
+  if (menu.screen === 'game') {
+    if (shell.session && shell.session.game.winner !== null) {
+      menu.screen = 'main';
+      shell.session = null;
+    }
+    return;
+  }
+  const r = canvas.getBoundingClientRect();
+  const px = e.clientX - r.left;
+  const py = e.clientY - r.top;
+  const items = layoutMenu(menu, canvas.width, canvas.height);
+  const item = hitMenuItem(items, px, py);
+  const action = menuClick(menu, item, e.button === 2 ? -1 : 1);
+  if (action?.type === 'start') {
+    shell.session = startSession(action.settings);
+  }
+});
+
+function updateCamera(s) {
   let dx = 0;
   let dy = 0;
   if (keys.has('ArrowLeft')) dx -= SCROLL_SPEED;
   if (keys.has('ArrowRight')) dx += SCROLL_SPEED;
   if (keys.has('ArrowUp')) dy -= SCROLL_SPEED;
   if (keys.has('ArrowDown')) dy += SCROLL_SPEED;
-  if (mouseX >= 0 && !input.drag) {
+  if (mouseX >= 0 && !s.input.drag) {
     if (mouseX < EDGE_PAN_MARGIN) dx -= SCROLL_SPEED;
-    if (mouseX > cam.viewW - EDGE_PAN_MARGIN && mouseX < cam.viewW + 4) dx += SCROLL_SPEED;
+    if (mouseX > s.cam.viewW - EDGE_PAN_MARGIN && mouseX < s.cam.viewW + 4) dx += SCROLL_SPEED;
     if (mouseY < EDGE_PAN_MARGIN) dy -= SCROLL_SPEED;
-    if (mouseY > cam.viewH - EDGE_PAN_MARGIN) dy += SCROLL_SPEED;
+    if (mouseY > s.cam.viewH - EDGE_PAN_MARGIN) dy += SCROLL_SPEED;
   }
-  if (dx || dy) moveCamera(cam, dx, dy);
+  if (dx || dy) moveCamera(s.cam, dx, dy);
 }
 
-let registry = null; // assets may still be loading; draw code falls back to rects
-loadAssets().then((r) => {
-  registry = r;
-  if (r.missing.length) console.warn('Missing assets (using fallbacks):', r.missing);
-});
+// ── Rendering ────────────────────────────────────────────────────────────────
 
-let accumulator = 0;
-let lastTime = performance.now();
-let shownCredits = 0;
-
-function render() {
+function renderGame(s) {
+  const { game, cam, input, player } = s;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const fogMap = game.fog[HouseType.GDI];
-  drawMap(ctx, world, cam, registry, fogMap);
-  drawEntities(ctx, store, cam, registry, input.selection, game.tick, game, HouseType.GDI);
-  drawProjectiles(ctx, store, cam);
-  drawEffects(ctx, effects, cam, registry, game.tick);
+
+  const fogMap = game.fog[player];
+  drawMap(ctx, game.world, cam, registry, fogMap);
+  drawEntities(ctx, game.store, cam, registry, input.selection, game.tick, game, player);
+  drawProjectiles(ctx, game.store, cam);
+  drawEffects(ctx, s.effects, cam, registry, game.tick);
   drawDragBox(ctx, input.drag);
 
   // Sidebar panel.
   const sbx = canvas.width - SIDEBAR_W;
   ctx.fillStyle = '#1e1e1e';
   ctx.fillRect(sbx, 0, SIDEBAR_W, canvas.height);
-  drawMinimap(ctx, minimap, world, cam, fogMap);
+  drawMinimap(ctx, s.minimap, game.world, cam, fogMap);
 
   // Credits ticker (rolls toward the real value like the original).
-  const house = game.houses[HouseType.GDI];
-  shownCredits += Math.sign(house.credits - shownCredits)
-    * Math.min(Math.abs(house.credits - shownCredits), 7);
-  const mmBottom = minimap.y + minimap.h;
+  const house = game.houses[player];
+  s.shownCredits += Math.sign(house.credits - s.shownCredits)
+    * Math.min(Math.abs(house.credits - s.shownCredits), 7);
+  const mmBottom = s.minimap.y + s.minimap.h;
   ctx.fillStyle = '#000';
   ctx.fillRect(sbx + 8, mmBottom + 8, SIDEBAR_W - 16, 22);
   ctx.fillStyle = '#54d454';
   ctx.font = 'bold 15px monospace';
   ctx.textAlign = 'right';
-  ctx.fillText(`$ ${Math.round(shownCredits)}`, sbx + SIDEBAR_W - 14, mmBottom + 24);
+  ctx.fillText(`$ ${Math.round(s.shownCredits)}`, sbx + SIDEBAR_W - 14, mmBottom + 24);
   ctx.textAlign = 'left';
 
   // Power bar: output vs drain.
@@ -166,37 +206,47 @@ function render() {
   ctx.fillText(house.lowPower ? 'LOW POWER' : 'POWER', sbx + 8, pbY + 22);
 
   // Build menu.
-  input.sidebarItems = layoutSidebarItems(game, HouseType.GDI, sbx, SIDEBAR_W, pbY + 32);
+  input.sidebarItems = layoutSidebarItems(game, player, sbx, SIDEBAR_W, pbY + 32);
   drawSidebar(ctx, input.sidebarItems, registry, game.tick);
 
   // Placement ghost under the cursor.
   if (input.placing && mouseX >= 0 && mouseX < cam.viewW) {
     const cell = screenToCell(cam, mouseX, mouseY);
-    const legal = canPlaceBuilding(game, HouseType.GDI, input.placing.type, cell.x, cell.y);
+    const legal = canPlaceBuilding(game, player, input.placing.type, cell.x, cell.y);
     drawPlacementGhost(ctx, cam, cell, input.placing.footprint, legal, TILE);
   }
 
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(0, 0, 430, 30);
+  ctx.fillRect(0, 0, 430, 22);
   ctx.fillStyle = '#c8ffc8';
-  ctx.font = '13px monospace';
+  ctx.font = '12px monospace';
   ctx.fillText(
-    `tick ${game.tick}  sel ${input.selection.size}  drag-select, right-click move, S stop`,
-    8, 19,
+    `tick ${game.tick}  sel ${input.selection.size}  A attack-move  S stop  P pause`,
+    8, 15,
   );
+
+  if (s.paused && game.winner === null) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 40px monospace';
+    ctx.fillStyle = '#ffd24a';
+    ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+    ctx.textAlign = 'left';
+  }
 }
 
-function drawEndScreen() {
-  const won = game.winner === HouseType.GDI;
+function drawEndScreen(s) {
+  const won = s.game.winner === s.player;
   ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textAlign = 'center';
   ctx.font = 'bold 52px monospace';
   ctx.fillStyle = won ? '#ffd24a' : '#d04030';
-  const title = game.winner === -1 ? 'STALEMATE' : won ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED';
+  const title = s.game.winner === -1 ? 'STALEMATE' : won ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED';
   ctx.fillText(title, canvas.width / 2, 250);
 
-  const stats = game.houses[HouseType.GDI].stats;
+  const stats = s.game.houses[s.player].stats;
   ctx.font = '18px monospace';
   ctx.fillStyle = '#cfcfcf';
   const lines = [
@@ -205,26 +255,42 @@ function drawEndScreen() {
     `Enemies destroyed: ${stats.kills}`,
     `Tiberium harvested: $${stats.creditsHarvested}`,
     '',
-    'Reload the page to play again',
+    'Click anywhere to return to the menu',
   ];
   lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, 330 + i * 30));
   ctx.textAlign = 'left';
 }
 
+// ── Main loop ────────────────────────────────────────────────────────────────
+
+let lastTime = performance.now();
+
 function frame(now) {
-  accumulator += now - lastTime;
+  const dt = now - lastTime;
   lastTime = now;
-  if (accumulator > 250) accumulator = 250; // background-tab pause guard
-  while (accumulator >= MS_PER_TICK && game.winner === null) {
-    gameTick(game, input.commandQueue.splice(0));
-    spawnFromEvents(effects, game.events, game.tick);
-    pruneEffects(effects, game.tick);
-    accumulator -= MS_PER_TICK;
+
+  if (menu.screen !== 'game' || !shell.session) {
+    const items = layoutMenu(menu, canvas.width, canvas.height);
+    drawMenu(ctx, menu, items, canvas.width, canvas.height);
+    requestAnimationFrame(frame);
+    return;
   }
-  updateCamera();
-  clampCamera(cam);
-  render();
-  if (game.winner !== null) drawEndScreen();
+
+  const s = shell.session;
+  s.accumulator += dt;
+  if (s.accumulator > 250) s.accumulator = 250; // background-tab pause guard
+  while (s.accumulator >= MS_PER_TICK) {
+    if (!s.paused && s.game.winner === null) {
+      gameTick(s.game, s.input.commandQueue.splice(0));
+      spawnFromEvents(s.effects, s.game.events, s.game.tick);
+      pruneEffects(s.effects, s.game.tick);
+    }
+    s.accumulator -= MS_PER_TICK;
+  }
+  updateCamera(s);
+  clampCamera(s.cam);
+  renderGame(s);
+  if (s.game.winner !== null) drawEndScreen(s);
   requestAnimationFrame(frame);
 }
 

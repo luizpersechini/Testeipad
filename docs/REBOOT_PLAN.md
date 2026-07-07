@@ -139,7 +139,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M7.2 Victory/defeat: destroy all enemy production structures ⇒ win; lose all yours ⇒ lose. End screen with stats (built/lost/harvested), return to menu.
 
 ### M8 — Menus & game shell
-- [ ] M8.1 `render/menu.js`: main menu → skirmish setup (faction, color, credits, difficulty, map seed) → game → end screen → menu. Pause (P/Esc). Port look from the old C++ menu design.
+- [x] M8.1 `render/menu.js`: main menu → skirmish setup (faction, color, credits, difficulty, map seed) → game → end screen → menu. Pause (P/Esc). Port look from the old C++ menu design.
 - [ ] M8.2 Save/load to localStorage (serialize sim state — it's already plain data), 3 slots.
 
 ### M9 — Feel & polish

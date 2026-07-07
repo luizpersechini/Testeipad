@@ -218,3 +218,13 @@ cooldown). Hard-vs-easy AI war now concludes decisively. Tests: 135 pass (4 new)
 M7 milestone complete.
 Notes: AI can still deadlock economically if its harvester dies while credits < 1400
 (cannot rebuild); impatience masks it strategically. Consider sell-to-rebuild later.
+
+## 2026-07-07 — M8.1
+Did: render/menu.js (main -> skirmish setup with faction/AI difficulty/credits/map-seed
+cyclers -> start; pure model/layout/hit-test), main.js restructured into a shell state
+machine (menu <-> session), sessions built from menu settings (play as GDI *or Nod*,
+enemy AI gets the other side), P pauses, end screen click returns to menu, input.js
+rewritten session-aware (player faction no longer hardcoded; listeners attach once and
+read the live session). Tests: 139 pass (4 new).
+Notes: right-click cycles menu options backward. ?ai= URL param removed — difficulty
+now comes from the menu. Playing as Nod is fully supported end to end.

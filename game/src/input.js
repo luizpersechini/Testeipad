@@ -1,5 +1,6 @@
 // Input: mouse/keyboard -> selection + command queue. Selection picking and
-// box-select are pure functions (node-tested); wireInput attaches DOM events.
+// box-select are pure functions (node-tested); wireInput attaches DOM events
+// once and reads the live session from the shell each event.
 
 import { TILE, HouseType } from './sim/constants.js';
 import { EntityKind } from './sim/entity.js';
@@ -8,10 +9,10 @@ import {
   deployCommand, harvestCommand, buildCommand, cancelBuildCommand, placeCommand,
   sellCommand, repairCommand,
 } from './sim/commands.js';
+import { screenToWorld, screenToCell, centerCameraOn } from './render/camera.js';
+import { pointInMinimap, minimapToWorldPx } from './render/minimap.js';
 import { hitSidebarItem } from './render/sidebar.js';
 import { BUILDING_TYPES } from './sim/data/buildings.js';
-import { screenToWorld, screenToCell } from './render/camera.js';
-import { pointInMinimap } from './render/minimap.js';
 
 export function createInputState() {
   return {
@@ -42,7 +43,7 @@ function selectable(e, owner) {
     && (e.kind === EntityKind.UNIT || e.kind === EntityKind.INFANTRY);
 }
 
-// Entity whose footprint contains the world pixel, preferring player-owned.
+// Entity whose footprint contains the world pixel, preferring `owner`'s.
 export function pickEntityAt(store, worldPxX, worldPxY, owner = HouseType.GDI) {
   const cx = (worldPxX / TILE) | 0;
   const cy = (worldPxY / TILE) | 0;
@@ -58,7 +59,7 @@ export function pickEntityAt(store, worldPxX, worldPxY, owner = HouseType.GDI) {
   return fallback;
 }
 
-// Player-owned mobile entities inside a world-pixel rectangle (any corner order).
+// `owner`'s mobile entities inside a world-pixel rectangle (any corner order).
 export function entitiesInRect(store, ax, ay, bx, by, owner = HouseType.GDI) {
   const x0 = Math.min(ax, bx);
   const x1 = Math.max(ax, bx);
@@ -76,9 +77,8 @@ export function entitiesInRect(store, ax, ay, bx, by, owner = HouseType.GDI) {
 
 const DRAG_THRESHOLD = 5; // px before a click becomes a box select
 
-export function wireInput(canvas, input, deps) {
-  const { cam, store, minimap, world, centerCameraOn, minimapToWorldPx } = deps;
-
+// shell.session (nullable): {game, cam, minimap, input, player}.
+export function wireInput(canvas, shell) {
   const mousePos = (e) => {
     const r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -87,7 +87,13 @@ export function wireInput(canvas, input, deps) {
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
   canvas.addEventListener('mousedown', (e) => {
+    const s = shell.session;
+    if (!s) return;
+    const { game, cam, minimap, input, player } = s;
+    const { store } = game;
+    const world = game.world;
     const p = mousePos(e);
+
     if (e.button === 0) {
       if (pointInMinimap(minimap, p.x, p.y)) {
         const w = minimapToWorldPx(minimap, world, p.x, p.y);
@@ -104,28 +110,26 @@ export function wireInput(canvas, input, deps) {
               footprint: BUILDING_TYPES[item.queued.type].footprint,
             };
           } else if (item.queued) {
-            input.commandQueue.push(cancelBuildCommand(HouseType.GDI, item.category));
+            input.commandQueue.push(cancelBuildCommand(player, item.category));
           } else {
-            input.commandQueue.push(buildCommand(HouseType.GDI, item.category, item.type));
+            input.commandQueue.push(buildCommand(player, item.category, item.type));
           }
         }
         return;
       }
       if (input.placing) {
         const cell = screenToCell(cam, p.x, p.y);
-        input.commandQueue.push(placeCommand(HouseType.GDI, cell.x, cell.y));
+        input.commandQueue.push(placeCommand(player, cell.x, cell.y));
         input.placing = null;
         return;
       }
       if (input.attackMoveArmed && input.selection.size > 0) {
-        // A + click: attack-move to the clicked cell.
         input.attackMoveArmed = false;
         const cell = screenToCell(cam, p.x, p.y);
         input.commandQueue.push(attackMoveCommand([...input.selection], cell.x, cell.y));
         return;
       }
       if (e.ctrlKey && input.selection.size > 0) {
-        // Ctrl + click: force-attack the ground.
         const cell = screenToCell(cam, p.x, p.y);
         input.commandQueue.push(forceAttackCommand([...input.selection], cell.x, cell.y));
         return;
@@ -136,8 +140,8 @@ export function wireInput(canvas, input, deps) {
     } else if (e.button === 2 && input.selection.size > 0 && p.x < cam.viewW) {
       // Right-click: attack an enemy under the cursor, otherwise move there.
       const wp = screenToWorld(cam, p.x, p.y);
-      const hit = pickEntityAt(store, wp.x, wp.y);
-      if (hit && hit.owner !== HouseType.GDI) {
+      const hit = pickEntityAt(store, wp.x, wp.y, player);
+      if (hit && hit.owner !== player) {
         input.commandQueue.push(attackCommand([...input.selection], hit.id));
       } else {
         const cell = screenToCell(cam, p.x, p.y);
@@ -147,7 +151,8 @@ export function wireInput(canvas, input, deps) {
   });
 
   canvas.addEventListener('mousemove', (e) => {
-    if (input.drag) {
+    const input = shell.session?.input;
+    if (input?.drag) {
       const p = mousePos(e);
       input.drag.x1 = p.x;
       input.drag.y1 = p.y;
@@ -155,7 +160,9 @@ export function wireInput(canvas, input, deps) {
   });
 
   window.addEventListener('mouseup', (e) => {
-    if (e.button !== 0 || !input.drag) return;
+    const s = shell.session;
+    if (!s || e.button !== 0 || !s.input.drag) return;
+    const { game, cam, input, player } = s;
     const d = input.drag;
     input.drag = null;
     const w = Math.abs(d.x1 - d.x0);
@@ -163,22 +170,25 @@ export function wireInput(canvas, input, deps) {
     if (w < DRAG_THRESHOLD && h < DRAG_THRESHOLD) {
       // Click select: own mobiles and own buildings (for sell/repair).
       const wp = screenToWorld(cam, d.x0, d.y0);
-      const hit = pickEntityAt(store, wp.x, wp.y);
+      const hit = pickEntityAt(game.store, wp.x, wp.y, player);
       input.selection.clear();
-      if (hit && hit.owner === HouseType.GDI
-        && (selectable(hit, HouseType.GDI) || hit.kind === EntityKind.BUILDING)) {
+      if (hit && hit.owner === player
+        && (selectable(hit, player) || hit.kind === EntityKind.BUILDING)) {
         input.selection.add(hit.id);
       }
     } else {
       const a = screenToWorld(cam, d.x0, d.y0);
       const b = screenToWorld(cam, d.x1, d.y1);
-      const hits = entitiesInRect(store, a.x, a.y, b.x, b.y);
+      const hits = entitiesInRect(game.store, a.x, a.y, b.x, b.y, player);
       input.selection.clear();
       for (const id of hits) input.selection.add(id);
     }
   });
 
   window.addEventListener('keydown', (e) => {
+    const s = shell.session;
+    if (!s) return;
+    const { input, game } = s;
     if (e.key === 's' && input.selection.size > 0) {
       input.commandQueue.push(stopCommand([...input.selection]));
       input.attackMoveArmed = false;
@@ -202,7 +212,7 @@ export function wireInput(canvas, input, deps) {
         assignGroup(input, digit);
         e.preventDefault();
       } else {
-        recallGroup(input, store, digit);
+        recallGroup(input, game.store, digit);
       }
     }
   });
