@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C&C: Tiberian Dawn - Modern Port</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #c0c0c0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #header {
+            text-align: center;
+            padding: 10px;
+        }
+        #header h1 {
+            color: #daa520;
+            font-size: 1.2em;
+            letter-spacing: 2px;
+        }
+        #canvas-container {
+            border: 2px solid #333;
+            box-shadow: 0 0 20px rgba(218, 165, 32, 0.2);
+        }
+        canvas { display: block; cursor: crosshair; }
+        #status {
+            padding: 8px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #666;
+        }
+        #loading {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        #loading h2 { color: #daa520; margin-bottom: 20px; }
+        #progress-bar {
+            width: 300px;
+            height: 4px;
+            background: #222;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        #progress-fill {
+            height: 100%;
+            background: #daa520;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        #loading-text { margin-top: 10px; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <h2>COMMAND &amp; CONQUER</h2>
+        <p>TIBERIAN DAWN</p>
+        <div id="progress-bar"><div id="progress-fill"></div></div>
+        <p id="loading-text">Initializing...</p>
+    </div>
+    <div id="header">
+        <h1>COMMAND &amp; CONQUER: TIBERIAN DAWN</h1>
+    </div>
+    <div id="canvas-container">
+        <canvas id="canvas" oncontextmenu="event.preventDefault()"
+                tabindex="-1"></canvas>
+    </div>
+    <div id="status">
+        <span id="fps-display"></span>
+    </div>
+
+    <script>
+        var Module = {
+            canvas: document.getElementById('canvas'),
+            setStatus: function(text) {
+                var loadingText = document.getElementById('loading-text');
+                if (loadingText) loadingText.textContent = text;
+                if (text === '') {
+                    document.getElementById('loading').style.display = 'none';
+                }
+                var m = text.match(/(\d+(\.\d+)?)\/(\d+)/);
+                if (m) {
+                    var pct = (parseFloat(m[1]) / parseFloat(m[3])) * 100;
+                    document.getElementById('progress-fill').style.width = pct + '%';
+                }
+            },
+            totalDependencies: 0,
+            monitorRunDependencies: function(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                Module.setStatus(left
+                    ? 'Loading... (' + (this.totalDependencies - left) +
+                      '/' + this.totalDependencies + ')'
+                    : '');
+            }
+        };
+        Module.setStatus('Downloading...');
+    </script>
+    {{{ SCRIPT }}}
+</body>
+</html>

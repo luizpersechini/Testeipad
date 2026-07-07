@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C&C: Tiberian Dawn - HTML5 Demo</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+  color: #00ff00;
+}
+#gameContainer {
+  position: relative;
+  width: 1280px;
+  height: 720px;
+  border: 2px solid #333;
+  box-shadow: 0 0 30px rgba(0,255,0,0.1);
+}
+canvas {
+  display: block;
+  cursor: crosshair;
+}
+#muteBtn {
+  position: absolute;
+  top: 5px;
+  right: 210px;
+  z-index: 10;
+  background: #222;
+  color: #0f0;
+  border: 1px solid #0f0;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+}
+#muteBtn:hover { background: #0f0; color: #000; }
+#pauseOverlay {
+  display: none;
+  position: absolute;
+  top: 0; left: 0;
+  width: 1080px; height: 720px;
+  background: rgba(0,0,0,0.6);
+  z-index: 5;
+  justify-content: center;
+  align-items: center;
+  font-size: 48px;
+  color: #ffcc00;
+  text-shadow: 0 0 20px #ff6600;
+  letter-spacing: 8px;
+}
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="gameCanvas" width="1280" height="720"></canvas>
+  <button id="muteBtn">SOUND: ON</button>
+  <div id="pauseOverlay">PAUSED</div>
+</div>
+
+<script>
+// ============================================================
+// C&C: TIBERIAN DAWN - HTML5 CANVAS RTS DEMO
+// ============================================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const CANVAS_W = 1280, CANVAS_H = 720;
+const SIDEBAR_W = 200;
+const VIEW_W = CANVAS_W - SIDEBAR_W, VIEW_H = CANVAS_H;
+const TILE = 32;
+const MAP_W = 40, MAP_H = 30;
+const MAP_PX_W = MAP_W * TILE, MAP_PX_H = MAP_H * TILE;
+
+// ---- Game State ----
+let gameTime = 0, deltaTime = 0, lastFrameTime = 0;
+let paused = false;
+let gameClock = 0;
+let credits = { gdi: 5000, nod: 5000 };
+let power = { gdi: 100, nod: 100 };
+let camera = { x: 0, y: 0 };
+let mouse = { x: 0, y: 0, worldX: 0, worldY: 0, down: false, rightDown: false };
+let dragStart = null, dragBox = null;
+let selectedUnits = [];
+let attackMoveMode = false;
+let moveMarkers = [];
+let fogOfWar = [];
+let notifications = [];
+let buildQueue = [];
+let buildProgress = 0;
+let buildItem = null;
+let constructionFlash = 0;
+let unitGroups = { 1: [], 2: [], 3: [] };
+let keys = {};
+let muted = false;
+let gameOver = false;
+let gameOverMsg = '';
+
+// AI state
+let aiAttackTimer = 0;
+const AI_ATTACK_INTERVAL = 45;
+let aiWaypoints = [];
+
+// ---- Audio System ----
+let audioCtx = null;
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playSound(type) {
+  if (muted || !audioCtx) return;
+  try {
+    const now = audioCtx.currentTime;
+    if (type === 'gunfire') {
+      const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.08, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) * 0.3;
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      src.connect(gain).connect(audioCtx.destination);
+      src.start(now);
+    } else if (type === 'explosion') {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.4, audioCtx.sampleRate);
+      const nd = buf.getChannelData(0);
+      for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / nd.length) * 0.4;
+      const nSrc = audioCtx.createBufferSource();
+      nSrc.buffer = buf;
+      const nGain = audioCtx.createGain();
+      nGain.gain.setValueAtTime(0.2, now);
+      nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(gain).connect(audioCtx.destination);
+      nSrc.connect(nGain).connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.4);
+      nSrc.start(now);
+    } else if (type === 'unitready') {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.setValueAtTime(1100, now + 0.1);
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.setValueAtTime(0.1, now + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.25);
+    } else if (type === 'select') {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.08);
+    }
+  } catch (e) {}
+}
+
+let bgMusicPlaying = false;
+let bgMusicOsc = null, bgMusicGain = null;
+function startBGMusic() {
+  if (!audioCtx || bgMusicPlaying || muted) return;
+  bgMusicPlaying = true;
+  bgMusicGain = audioCtx.createGain();
+  bgMusicGain.gain.value = 0.03;
+  bgMusicGain.connect(audioCtx.destination);
+
+  function playNote(freq, startTime, dur) {
+    const o = audioCtx.createOscillator();
+    o.type = 'square';
+    o.frequency.value = freq;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.03, startTime);
+    g.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(startTime); o.stop(startTime + dur);
+  }
+  const notes = [130.81,146.83,164.81,174.61,196,174.61,164.81,146.83,130.81,110,130.81,146.83,164.81,196,220,196];
+  const beatDur = 0.25;
+  let t = audioCtx.currentTime;
+  function scheduleLoop() {
+    if (muted || !bgMusicPlaying) return;
+    const now = audioCtx.currentTime;
+    while (t < now + 2) {
+      for (let i = 0; i < notes.length; i++) {
+        playNote(notes[i], t + i * beatDur, beatDur * 0.8);
+      }
+      t += notes.length * beatDur;
+    }
+    setTimeout(scheduleLoop, 500);
+  }
+  scheduleLoop();
+}
+function stopBGMusic() { bgMusicPlaying = false; }
+
+// ---- Map Generation ----
+const TERRAIN = { SAND: 0, ROCK: 1, WATER: 2, TIBERIUM: 3, ROAD: 4 };
+let map = [];
+function generateMap() {
+  map = [];
+  for (let y = 0; y < MAP_H; y++) {
+    map[y] = [];
+    for (let x = 0; x < MAP_W; x++) {
+      map[y][x] = { terrain: TERRAIN.SAND, tiberium: 0 };
+    }
+  }
+  // Water body (bottom-left)
+  for (let y = 22; y < 28; y++) for (let x = 2; x < 10; x++) {
+    if (Math.random() < 0.85) map[y][x].terrain = TERRAIN.WATER;
+  }
+  // Rock formations
+  for (let i = 0; i < 30; i++) {
+    let rx = Math.floor(Math.random() * MAP_W);
+    let ry = Math.floor(Math.random() * MAP_H);
+    let sz = Math.floor(Math.random() * 3) + 1;
+    for (let dy = 0; dy < sz; dy++) for (let dx = 0; dx < sz; dx++) {
+      let nx = rx + dx, ny = ry + dy;
+      if (nx < MAP_W && ny < MAP_H && map[ny][nx].terrain === TERRAIN.SAND) {
+        map[ny][nx].terrain = TERRAIN.ROCK;
+      }
+    }
+  }
+  // Roads connecting bases
+  for (let x = 5; x < 35; x++) {
+    map[15][x].terrain = TERRAIN.ROAD;
+    if (x < 15 || x > 25) map[14][x].terrain = TERRAIN.ROAD;
+  }
+  for (let y = 5; y < 25; y++) {
+    map[y][20].terrain = TERRAIN.ROAD;
+  }
+  // Tiberium fields (center)
+  for (let y = 10; y < 20; y++) for (let x = 15; x < 25; x++) {
+    if (Math.random() < 0.55 && map[y][x].terrain === TERRAIN.SAND) {
+      map[y][x].terrain = TERRAIN.TIBERIUM;
+      map[y][x].tiberium = 100 + Math.random() * 100;
+    }
+  }
+  // Secondary tiberium
+  for (let y = 5; y < 10; y++) for (let x = 28; x < 35; x++) {
+    if (Math.random() < 0.4 && map[y][x].terrain === TERRAIN.SAND) {
+      map[y][x].terrain = TERRAIN.TIBERIUM;
+      map[y][x].tiberium = 80 + Math.random() * 80;
+    }
+  }
+  // Clear GDI base area
+  for (let y = 1; y < 8; y++) for (let x = 1; x < 10; x++) {
+    map[y][x].terrain = TERRAIN.SAND;
+    map[y][x].tiberium = 0;
+  }
+  // Clear Nod base area
+  for (let y = 22; y < 29; y++) for (let x = 30; x < 39; x++) {
+    map[y][x].terrain = TERRAIN.SAND;
+    map[y][x].tiberium = 0;
+  }
+  // Fog of war
+  fogOfWar = [];
+  for (let y = 0; y < MAP_H; y++) {
+    fogOfWar[y] = [];
+    for (let x = 0; x < MAP_W; x++) fogOfWar[y][x] = 0;
+  }
+}
+
+// ---- Tiberium Spread ----
+let tiberiumSpreadTimer = 0;
+function spreadTiberium() {
+  tiberiumSpreadTimer += deltaTime;
+  if (tiberiumSpreadTimer < 10) return;
+  tiberiumSpreadTimer = 0;
+  for (let i = 0; i < 3; i++) {
+    let tx = Math.floor(Math.random() * MAP_W);
+    let ty = Math.floor(Math.random() * MAP_H);
+    if (map[ty][tx].terrain === TERRAIN.TIBERIUM) {
+      let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      let d = dirs[Math.floor(Math.random() * 4)];
+      let nx = tx + d[0], ny = ty + d[1];
+      if (nx >= 0 && nx < MAP_W && ny >= 0 && ny < MAP_H && map[ny][nx].terrain === TERRAIN.SAND) {
+        map[ny][nx].terrain = TERRAIN.TIBERIUM;
+        map[ny][nx].tiberium = 50 + Math.random() * 50;
+      }
+    }
+  }
+}
+
+// ---- Entity System ----
+let entities = [];
+let projectiles = [];
+let explosions = [];
+let particles = [];
+let nextId = 1;
+
+function createBuilding(x, y, w, h, team, type) {
+  return {
+    id: nextId++, entityType: 'building', x: x * TILE, y: y * TILE,
+    w: w * TILE, h: h * TILE, tileX: x, tileY: y, tileW: w, tileH: h,
+    team, type, hp: 500, maxHp: 500, selected: false,
+    animPhase: Math.random() * Math.PI * 2
+  };
+}
+
+function createUnit(x, y, team, type) {
+  let size = 12, speed = 60, hp = 100, range = 150, damage = 8, fireRate = 0.8;
+  let isInfantry = false, isHarvester = false;
+  switch (type) {
+    case 'medium_tank': size = 14; speed = 55; hp = 200; range = 170; damage = 18; fireRate = 1.2; break;
+    case 'light_tank': size = 12; speed = 70; hp = 150; range = 150; damage = 12; fireRate = 0.9; break;
+    case 'mammoth_tank': size = 18; speed = 35; hp = 400; range = 200; damage = 30; fireRate = 1.8; break;
+    case 'humvee': size = 10; speed = 90; hp = 120; range = 130; damage = 6; fireRate = 0.3; break;
+    case 'buggy': size = 10; speed = 95; hp = 100; range = 120; damage = 5; fireRate = 0.3; break;
+    case 'flame_tank': size = 14; speed = 50; hp = 180; range = 90; damage = 20; fireRate = 0.5; break;
+    case 'stealth_tank': size = 12; speed = 70; hp = 130; range = 160; damage = 22; fireRate = 1.5; break;
+    case 'harvester': size = 14; speed = 40; hp = 300; range = 0; damage = 0; isHarvester = true; break;
+    case 'infantry': size = 5; speed = 35; hp = 50; range = 100; damage = 4; fireRate = 0.5; isInfantry = true; break;
+  }
+  return {
+    id: nextId++, entityType: 'unit', x, y, team, type, size,
+    speed, hp, maxHp: hp, range, damage, fireRate,
+    selected: false, targetX: x, targetY: y, moving: false,
+    angle: Math.random() * Math.PI * 2, fireTimer: 0,
+    target: null, isInfantry, isHarvester,
+    harvestLoad: 0, maxHarvestLoad: 500, harvestState: 'idle',
+    stealthAlpha: type === 'stealth_tank' ? 0.3 : 1,
+    muzzleFlash: 0, alive: true,
+    patrolPoints: [], patrolIndex: 0, retreating: false,
+    group: 0
+  };
+}
+
+// ---- Initialize Game ----
+function initGame() {
+  generateMap();
+  entities = [];
+  projectiles = [];
+  explosions = [];
+  particles = [];
+  moveMarkers = [];
+  notifications = [];
+  selectedUnits = [];
+  buildQueue = [
+    { name: 'Infantry', time: 8, cost: 100 },
+    { name: 'Humvee', time: 15, cost: 400 },
+    { name: 'Med Tank', time: 20, cost: 800 },
+    { name: 'Mammoth', time: 35, cost: 1500 },
+    { name: 'Guard Twr', time: 18, cost: 500 },
+  ];
+  buildItem = null;
+  buildProgress = 0;
+  constructionFlash = 0;
+  credits = { gdi: 5000, nod: 5000 };
+  gameOver = false;
+  gameOverMsg = '';
+
+  // GDI Buildings
+  entities.push(createBuilding(2, 2, 2, 2, 'gdi', 'construction_yard'));
+  entities.push(createBuilding(5, 2, 2, 2, 'gdi', 'power_plant'));
+  entities.push(createBuilding(2, 5, 2, 2, 'gdi', 'refinery'));
+  entities.push(createBuilding(5, 5, 2, 2, 'gdi', 'barracks'));
+  entities.push(createBuilding(8, 2, 2, 2, 'gdi', 'weapons_factory'));
+  entities.push(createBuilding(8, 5, 1, 1, 'gdi', 'guard_tower'));
+  entities[1].hp = 400; entities[1].maxHp = 400;
+  entities[5].hp = 300; entities[5].maxHp = 300;
+
+  // Nod Buildings
+  entities.push(createBuilding(32, 23, 2, 2, 'nod', 'construction_yard'));
+  entities.push(createBuilding(35, 23, 2, 2, 'nod', 'power_plant'));
+  entities.push(createBuilding(32, 26, 2, 2, 'nod', 'hand_of_nod'));
+  entities.push(createBuilding(35, 26, 1, 1, 'nod', 'obelisk'));
+  entities.push(createBuilding(37, 23, 2, 2, 'nod', 'airstrip'));
+  entities[9].hp = 600; entities[9].maxHp = 600;
+
+  // GDI Units
+  for (let i = 0; i < 3; i++) entities.push(createUnit(350 + i * 40, 220 + i * 20, 'gdi', 'medium_tank'));
+  for (let i = 0; i < 2; i++) entities.push(createUnit(250 + i * 35, 260, 'gdi', 'humvee'));
+  entities.push(createUnit(400, 180, 'gdi', 'mammoth_tank'));
+  entities.push(createUnit(150, 200, 'gdi', 'harvester'));
+  for (let i = 0; i < 4; i++) entities.push(createUnit(200 + i * 20, 300 + (i%2)*15, 'gdi', 'infantry'));
+
+  // Nod Units
+  for (let i = 0; i < 3; i++) entities.push(createUnit(1050 + i * 35, 750 + i * 20, 'nod', 'light_tank'));
+  for (let i = 0; i < 2; i++) entities.push(createUnit(1000 + i * 30, 810, 'nod', 'buggy'));
+  entities.push(createUnit(1100, 780, 'nod', 'flame_tank'));
+  entities.push(createUnit(1080, 820, 'nod', 'stealth_tank'));
+  for (let i = 0; i < 4; i++) entities.push(createUnit(1020 + i * 18, 860 + (i%2)*12, 'nod', 'infantry'));
+
+  // Nod harvester
+  entities.push(createUnit(1060, 760, 'nod', 'harvester'));
+
+  // Set patrol waypoints for Nod
+  aiWaypoints = [
+    { x: 900, y: 600 }, { x: 700, y: 500 }, { x: 800, y: 700 }, { x: 1000, y: 650 }
+  ];
+  entities.filter(e => e.team === 'nod' && e.entityType === 'unit' && !e.isHarvester).forEach(u => {
+    u.patrolPoints = [...aiWaypoints];
+    u.patrolIndex = Math.floor(Math.random() * aiWaypoints.length);
+  });
+
+  // Init harvester AI
+  entities.filter(e => e.isHarvester).forEach(h => { h.harvestState = 'seeking'; });
+
+  aiAttackTimer = AI_ATTACK_INTERVAL * 0.6;
+  gameClock = 0;
+  camera = { x: 0, y: 0 };
+}
+
+// ---- Pathfinding (simple) ----
+function isPassable(wx, wy) {
+  let tx = Math.floor(wx / TILE), ty = Math.floor(wy / TILE);
+  if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return false;
+  return map[ty][tx].terrain !== TERRAIN.WATER;
+}
+
+function moveToward(unit, tx, ty) {
+  let dx = tx - unit.x, dy = ty - unit.y;
+  let dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 3) { unit.moving = false; return; }
+  let moveX = (dx / dist) * unit.speed * deltaTime;
+  let moveY = (dy / dist) * unit.speed * deltaTime;
+  let nx = unit.x + moveX, ny = unit.y + moveY;
+  if (isPassable(nx, ny)) {
+    unit.x = nx;
+    unit.y = ny;
+    unit.angle = Math.atan2(dy, dx);
+  } else {
+    // Simple obstacle avoidance: try perpendicular
+    let perpX = unit.x + (dy / dist) * unit.speed * deltaTime;
+    let perpY = unit.y + (-dx / dist) * unit.speed * deltaTime;
+    if (isPassable(perpX, perpY)) {
+      unit.x = perpX;
+      unit.y = perpY;
+    }
+  }
+  // Clamp to map
+  unit.x = Math.max(5, Math.min(MAP_PX_W - 5, unit.x));
+  unit.y = Math.max(5, Math.min(MAP_PX_H - 5, unit.y));
+}
+
+// ---- Update Logic ----
+function update() {
+  if (paused || gameOver) return;
+  gameClock += deltaTime;
+
+  // Camera scroll
+  let scrollSpeed = 300 * deltaTime;
+  if (keys['ArrowLeft'] || keys['KeyA'] || keys['a']) camera.x -= scrollSpeed;
+  if (keys['ArrowRight'] || keys['KeyD'] || keys['d']) camera.x += scrollSpeed;
+  if (keys['ArrowUp'] || keys['KeyW'] || keys['w']) camera.y -= scrollSpeed;
+  if (keys['ArrowDown'] || keys['KeyS'] || keys['s']) camera.y += scrollSpeed;
+  // Edge scroll
+  if (mouse.x < 10 && mouse.x >= 0) camera.x -= scrollSpeed;
+  if (mouse.x > VIEW_W - 10 && mouse.x < VIEW_W) camera.x += scrollSpeed;
+  if (mouse.y < 10) camera.y -= scrollSpeed;
+  if (mouse.y > VIEW_H - 10) camera.y += scrollSpeed;
+  camera.x = Math.max(0, Math.min(MAP_PX_W - VIEW_W, camera.x));
+  camera.y = Math.max(0, Math.min(MAP_PX_H - VIEW_H, camera.y));
+
+  // Update fog of war from GDI units
+  entities.filter(e => e.team === 'gdi' && e.alive !== false).forEach(e => {
+    let cx, cy;
+    if (e.entityType === 'building') { cx = e.x + e.w / 2; cy = e.y + e.h / 2; }
+    else { cx = e.x; cy = e.y; }
+    let r = e.entityType === 'building' ? 7 : 5;
+    let tcx = Math.floor(cx / TILE), tcy = Math.floor(cy / TILE);
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      let tx = tcx + dx, ty = tcy + dy;
+      if (tx >= 0 && tx < MAP_W && ty >= 0 && ty < MAP_H) {
+        if (dx * dx + dy * dy <= r * r) {
+          fogOfWar[ty][tx] = Math.min(1, fogOfWar[ty][tx] + deltaTime * 3);
+        }
+      }
+    }
+  });
+
+  // Tiberium
+  spreadTiberium();
+
+  // Build system
+  if (buildItem) {
+    buildProgress += deltaTime;
+    if (buildProgress >= buildItem.time) {
+      buildProgress = 0;
+      credits.gdi -= buildItem.cost;
+      constructionFlash = 2;
+      notifications.push({ text: 'CONSTRUCTION COMPLETE', timer: 3, color: '#ffcc00' });
+      playSound('unitready');
+      // Spawn unit
+      let spawnX = 320, spawnY = 280;
+      if (buildItem.name === 'Infantry') {
+        entities.push(createUnit(spawnX, spawnY, 'gdi', 'infantry'));
+      } else if (buildItem.name === 'Humvee') {
+        entities.push(createUnit(spawnX + 30, spawnY, 'gdi', 'humvee'));
+      } else if (buildItem.name === 'Med Tank') {
+        entities.push(createUnit(spawnX + 60, spawnY + 20, 'gdi', 'medium_tank'));
+      } else if (buildItem.name === 'Mammoth') {
+        entities.push(createUnit(spawnX + 60, spawnY + 50, 'gdi', 'mammoth_tank'));
+      }
+      buildItem = null;
+    }
+  }
+  if (constructionFlash > 0) constructionFlash -= deltaTime;
+
+  // Credits animation from harvesters
+  entities.filter(e => e.isHarvester && e.alive !== false).forEach(h => {
+    updateHarvester(h);
+  });
+
+  // Update units
+  entities.filter(e => e.entityType === 'unit' && e.alive !== false && !e.isHarvester).forEach(u => {
+    u.fireTimer -= deltaTime;
+    if (u.muzzleFlash > 0) u.muzzleFlash -= deltaTime;
+
+    // Movement
+    if (u.moving) {
+      moveToward(u, u.targetX, u.targetY);
+      let dx = u.targetX - u.x, dy = u.targetY - u.y;
+      if (dx * dx + dy * dy < 10) u.moving = false;
+    }
+
+    // Find target
+    if (u.range > 0) {
+      if (!u.target || !isAlive(u.target)) {
+        u.target = findNearestEnemy(u);
+      }
+      if (u.target && isAlive(u.target)) {
+        let tx = targetCenterX(u.target), ty = targetCenterY(u.target);
+        let dx = tx - u.x, dy = ty - u.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        u.angle = Math.atan2(dy, dx);
+        if (dist <= u.range) {
+          // Fire
+          if (u.fireTimer <= 0) {
+            u.fireTimer = u.fireRate;
+            u.muzzleFlash = 0.1;
+            fireProjectile(u, u.target);
+            playSound('gunfire');
+          }
+        } else if (u.team === 'nod' && !u.retreating) {
+          // Chase
+          u.targetX = tx;
+          u.targetY = ty;
+          u.moving = true;
+        } else if (attackMoveMode && u.team === 'gdi' && u.selected) {
+          u.targetX = tx;
+          u.targetY = ty;
+          u.moving = true;
+        }
+      }
+
+      // AI behavior for Nod
+      if (u.team === 'nod') {
+        updateNodAI(u);
+      }
+    }
+  });
+
+  // Guard tower auto-attack
+  entities.filter(e => e.entityType === 'building' && e.type === 'guard_tower' && e.hp > 0).forEach(b => {
+    if (!b.fireTimer) b.fireTimer = 0;
+    b.fireTimer -= deltaTime;
+    let cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    let target = findNearestEnemyFrom(cx, cy, 'gdi', 200);
+    if (target && b.fireTimer <= 0) {
+      b.fireTimer = 0.8;
+      let p = {
+        x: cx, y: cy, targetId: target.id,
+        tx: targetCenterX(target), ty: targetCenterY(target),
+        speed: 350, damage: 15, team: 'gdi', alive: true
+      };
+      projectiles.push(p);
+      playSound('gunfire');
+    }
+  });
+
+  // Obelisk of Light
+  entities.filter(e => e.entityType === 'building' && e.type === 'obelisk' && e.hp > 0).forEach(b => {
+    if (!b.fireTimer) b.fireTimer = 0;
+    if (!b.laserEffect) b.laserEffect = null;
+    b.fireTimer -= deltaTime;
+    let cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    let target = findNearestEnemyFrom(cx, cy, 'nod', 250);
+    if (target && b.fireTimer <= 0) {
+      b.fireTimer = 3;
+      b.laserEffect = {
+        x1: cx, y1: cy,
+        x2: targetCenterX(target), y2: targetCenterY(target),
+        timer: 0.5, targetId: target.id
+      };
+      dealDamage(target, 80);
+      playSound('explosion');
+    }
+    if (b.laserEffect) {
+      b.laserEffect.timer -= deltaTime;
+      if (b.laserEffect.timer <= 0) b.laserEffect = null;
+    }
+  });
+
+  // Update projectiles
+  projectiles = projectiles.filter(p => p.alive);
+  projectiles.forEach(p => {
+    let dx = p.tx - p.x, dy = p.ty - p.y;
+    let dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 8) {
+      p.alive = false;
+      let target = entities.find(e => e.id === p.targetId);
+      if (target && isAlive(target)) {
+        dealDamage(target, p.damage);
+      }
+      explosions.push({ x: p.tx, y: p.ty, radius: 0, maxRadius: 12, timer: 0.3, maxTimer: 0.3 });
+    } else {
+      p.x += (dx / dist) * p.speed * deltaTime;
+      p.y += (dy / dist) * p.speed * deltaTime;
+    }
+  });
+
+  // Update explosions
+  explosions = explosions.filter(e => e.timer > 0);
+  explosions.forEach(e => {
+    e.timer -= deltaTime;
+    e.radius = e.maxRadius * (1 - e.timer / e.maxTimer);
+  });
+
+  // Update particles (smoke, etc.)
+  particles = particles.filter(p => p.timer > 0);
+  particles.forEach(p => {
+    p.timer -= deltaTime;
+    p.x += p.vx * deltaTime;
+    p.y += p.vy * deltaTime;
+    p.alpha = p.timer / p.maxTimer;
+  });
+
+  // Smoke from damaged buildings
+  entities.filter(e => e.entityType === 'building' && e.hp > 0 && e.hp < e.maxHp * 0.5).forEach(b => {
+    if (Math.random() < 2 * deltaTime) {
+      particles.push({
+        x: b.x + Math.random() * b.w, y: b.y + Math.random() * b.h * 0.3,
+        vx: (Math.random() - 0.5) * 20, vy: -30 - Math.random() * 20,
+        timer: 1 + Math.random(), maxTimer: 1.5, color: '#555', size: 4 + Math.random() * 4, alpha: 1
+      });
+    }
+  });
+
+  // Update move markers
+  moveMarkers = moveMarkers.filter(m => m.timer > 0);
+  moveMarkers.forEach(m => { m.timer -= deltaTime; m.radius += 30 * deltaTime; });
+
+  // Update notifications
+  notifications = notifications.filter(n => n.timer > 0);
+  notifications.forEach(n => n.timer -= deltaTime);
+
+  // Remove dead entities
+  entities.forEach(e => {
+    if (e.hp <= 0 && e.alive !== false) {
+      e.alive = false;
+      e.hp = 0;
+      explosions.push({
+        x: e.entityType === 'building' ? e.x + e.w / 2 : e.x,
+        y: e.entityType === 'building' ? e.y + e.h / 2 : e.y,
+        radius: 0, maxRadius: e.entityType === 'building' ? 40 : 20,
+        timer: 0.6, maxTimer: 0.6
+      });
+      playSound('explosion');
+    }
+  });
+
+  // AI attack waves
+  aiAttackTimer += deltaTime;
+  if (aiAttackTimer >= AI_ATTACK_INTERVAL) {
+    aiAttackTimer = 0;
+    launchNodAttack();
+  }
+
+  // Nod credits for harvester
+  // (handled in harvester update)
+
+  // Check game over
+  let gdiBuildings = entities.filter(e => e.team === 'gdi' && e.entityType === 'building' && e.hp > 0);
+  let nodBuildings = entities.filter(e => e.team === 'nod' && e.entityType === 'building' && e.hp > 0);
+  if (gdiBuildings.length === 0 && !gameOver) {
+    gameOver = true;
+    gameOverMsg = 'NOD VICTORY - GDI BASE DESTROYED';
+  }
+  if (nodBuildings.length === 0 && !gameOver) {
+    gameOver = true;
+    gameOverMsg = 'GDI VICTORY - NOD BASE DESTROYED';
+  }
+}
+
+function updateHarvester(h) {
+  if (h.harvestState === 'seeking') {
+    // Find nearest tiberium
+    let closest = null, closestDist = Infinity;
+    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+      if (map[y][x].terrain === TERRAIN.TIBERIUM && map[y][x].tiberium > 0) {
+        let tx = x * TILE + TILE / 2, ty = y * TILE + TILE / 2;
+        let d = Math.sqrt((tx - h.x) ** 2 + (ty - h.y) ** 2);
+        if (d < closestDist) { closestDist = d; closest = { x: tx, y: ty }; }
+      }
+    }
+    if (closest) {
+      h.targetX = closest.x;
+      h.targetY = closest.y;
+      h.moving = true;
+      h.harvestState = 'moving_to_tiberium';
+    }
+  } else if (h.harvestState === 'moving_to_tiberium') {
+    moveToward(h, h.targetX, h.targetY);
+    let dx = h.targetX - h.x, dy = h.targetY - h.y;
+    if (dx * dx + dy * dy < 20 * 20) {
+      h.harvestState = 'harvesting';
+      h.moving = false;
+    }
+  } else if (h.harvestState === 'harvesting') {
+    let tx = Math.floor(h.x / TILE), ty = Math.floor(h.y / TILE);
+    if (tx >= 0 && tx < MAP_W && ty >= 0 && ty < MAP_H && map[ty][tx].terrain === TERRAIN.TIBERIUM) {
+      let amt = Math.min(30 * deltaTime, map[ty][tx].tiberium, h.maxHarvestLoad - h.harvestLoad);
+      h.harvestLoad += amt;
+      map[ty][tx].tiberium -= amt;
+      if (map[ty][tx].tiberium <= 0) {
+        map[ty][tx].terrain = TERRAIN.SAND;
+        map[ty][tx].tiberium = 0;
+      }
+    }
+    if (h.harvestLoad >= h.maxHarvestLoad) {
+      h.harvestState = 'returning';
+      // Find refinery
+      let ref = entities.find(e => e.entityType === 'building' &&
+        ((e.type === 'refinery' && e.team === h.team) || (e.type === 'construction_yard' && e.team === h.team)) && e.hp > 0);
+      if (ref) {
+        h.targetX = ref.x + ref.w / 2;
+        h.targetY = ref.y + ref.h;
+        h.moving = true;
+      }
+    } else {
+      // Look for more tiberium nearby
+      let tx = Math.floor(h.x / TILE), ty = Math.floor(h.y / TILE);
+      if (!map[ty] || !map[ty][tx] || map[ty][tx].terrain !== TERRAIN.TIBERIUM) {
+        h.harvestState = 'seeking';
+      }
+    }
+  } else if (h.harvestState === 'returning') {
+    moveToward(h, h.targetX, h.targetY);
+    let dx = h.targetX - h.x, dy = h.targetY - h.y;
+    if (dx * dx + dy * dy < 30 * 30) {
+      credits[h.team] += Math.floor(h.harvestLoad * 0.7);
+      h.harvestLoad = 0;
+      h.harvestState = 'seeking';
+      h.moving = false;
+    }
+  }
+  if (h.moving && h.harvestState !== 'harvesting') {
+    moveToward(h, h.targetX, h.targetY);
+  }
+}
+
+function updateNodAI(u) {
+  if (u.retreating) {
+    if (u.hp > u.maxHp * 0.3) u.retreating = false;
+    return;
+  }
+  if (u.hp < u.maxHp * 0.15) {
+    u.retreating = true;
+    u.targetX = 1050 + Math.random() * 100;
+    u.targetY = 780 + Math.random() * 80;
+    u.moving = true;
+    u.target = null;
+    return;
+  }
+  // If no target and not moving, patrol
+  if (!u.target && !u.moving && u.patrolPoints.length > 0) {
+    let wp = u.patrolPoints[u.patrolIndex % u.patrolPoints.length];
+    u.targetX = wp.x + (Math.random() - 0.5) * 60;
+    u.targetY = wp.y + (Math.random() - 0.5) * 60;
+    u.moving = true;
+    let dx = u.targetX - u.x, dy = u.targetY - u.y;
+    if (dx * dx + dy * dy < 80 * 80) {
+      u.patrolIndex = (u.patrolIndex + 1) % u.patrolPoints.length;
+    }
+  }
+}
+
+function launchNodAttack() {
+  let nodUnits = entities.filter(e => e.team === 'nod' && e.entityType === 'unit' && e.alive !== false && !e.isHarvester);
+  let attackForce = nodUnits.slice(0, Math.min(4, nodUnits.length));
+  let gdiBuildings = entities.filter(e => e.team === 'gdi' && e.entityType === 'building' && e.hp > 0);
+  if (gdiBuildings.length === 0) return;
+  let target = gdiBuildings[Math.floor(Math.random() * gdiBuildings.length)];
+  attackForce.forEach(u => {
+    u.targetX = target.x + target.w / 2 + (Math.random() - 0.5) * 40;
+    u.targetY = target.y + target.h / 2 + (Math.random() - 0.5) * 40;
+    u.moving = true;
+    u.retreating = false;
+    u.patrolPoints = [...aiWaypoints];
+  });
+  notifications.push({ text: 'WARNING: NOD ATTACK INCOMING', timer: 4, color: '#ff3333' });
+}
+
+function findNearestEnemy(unit) {
+  return findNearestEnemyFrom(unit.x, unit.y, unit.team, unit.range * 1.5);
+}
+
+function findNearestEnemyFrom(x, y, team, range) {
+  let closest = null, closestDist = range;
+  entities.forEach(e => {
+    if (e.team === team || !isAlive(e)) return;
+    let ex = e.entityType === 'building' ? e.x + e.w / 2 : e.x;
+    let ey = e.entityType === 'building' ? e.y + e.h / 2 : e.y;
+    let d = Math.sqrt((ex - x) ** 2 + (ey - y) ** 2);
+    if (d < closestDist) { closestDist = d; closest = e; }
+  });
+  return closest;
+}
+
+function isAlive(e) {
+  if (!e) return false;
+  if (e.entityType === 'building') return e.hp > 0;
+  return e.alive !== false && e.hp > 0;
+}
+
+function targetCenterX(e) { return e.entityType === 'building' ? e.x + e.w / 2 : e.x; }
+function targetCenterY(e) { return e.entityType === 'building' ? e.y + e.h / 2 : e.y; }
+
+function fireProjectile(unit, target) {
+  let p = {
+    x: unit.x + Math.cos(unit.angle) * unit.size,
+    y: unit.y + Math.sin(unit.angle) * unit.size,
+    targetId: target.id,
+    tx: targetCenterX(target), ty: targetCenterY(target),
+    speed: unit.type === 'flame_tank' ? 200 : 300,
+    damage: unit.damage, team: unit.team, alive: true,
+    isFlame: unit.type === 'flame_tank'
+  };
+  projectiles.push(p);
+}
+
+function dealDamage(target, amount) {
+  target.hp -= amount;
+}
+
+// ---- Rendering ----
+function render() {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, VIEW_W, VIEW_H);
+  ctx.clip();
+
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+
+  drawMap();
+  drawEntities();
+  drawProjectiles();
+  drawExplosions();
+  drawParticles();
+  drawMoveMarkers();
+  drawDragBox();
+
+  ctx.restore();
+  ctx.restore();
+
+  drawSidebar();
+  drawNotifications();
+  drawGameOver();
+}
+
+function drawMap() {
+  let startTX = Math.floor(camera.x / TILE);
+  let startTY = Math.floor(camera.y / TILE);
+  let endTX = Math.min(MAP_W, startTX + Math.ceil(VIEW_W / TILE) + 2);
+  let endTY = Math.min(MAP_H, startTY + Math.ceil(VIEW_H / TILE) + 2);
+
+  for (let y = startTY; y < endTY; y++) {
+    for (let x = startTX; x < endTX; x++) {
+      if (y < 0 || x < 0) continue;
+      let tile = map[y][x];
+      let px = x * TILE, py = y * TILE;
+
+      switch (tile.terrain) {
+        case TERRAIN.SAND:
+          ctx.fillStyle = `rgb(${194 + ((x * 7 + y * 11) % 15)}, ${178 + ((x * 3 + y * 5) % 12)}, ${128 + ((x * 9 + y * 3) % 10)})`;
+          ctx.fillRect(px, py, TILE, TILE);
+          break;
+        case TERRAIN.ROCK:
+          ctx.fillStyle = `rgb(${110 + ((x * 5 + y * 7) % 20)}, ${105 + ((x * 3 + y * 11) % 15)}, ${100 + ((x * 7 + y * 3) % 15)})`;
+          ctx.fillRect(px, py, TILE, TILE);
+          // Rock detail
+          ctx.fillStyle = `rgba(80, 75, 70, 0.4)`;
+          ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+          break;
+        case TERRAIN.WATER:
+          let waveOff = Math.sin(gameTime * 2 + x * 0.5 + y * 0.3) * 15;
+          ctx.fillStyle = `rgb(${30 + waveOff}, ${80 + waveOff}, ${160 + waveOff})`;
+          ctx.fillRect(px, py, TILE, TILE);
+          // Wave lines
+          ctx.strokeStyle = `rgba(100, 180, 255, ${0.3 + Math.sin(gameTime * 3 + x) * 0.15})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(px, py + TILE / 2 + Math.sin(gameTime * 2.5 + x * 0.8) * 3);
+          ctx.lineTo(px + TILE, py + TILE / 2 + Math.sin(gameTime * 2.5 + (x + 1) * 0.8) * 3);
+          ctx.stroke();
+          break;
+        case TERRAIN.TIBERIUM:
+          ctx.fillStyle = `rgb(${194 + ((x * 7 + y * 11) % 15)}, ${178 + ((x * 3 + y * 5) % 12)}, ${128 + ((x * 9 + y * 3) % 10)})`;
+          ctx.fillRect(px, py, TILE, TILE);
+          // Crystal shards
+          let crystalBright = 0.6 + Math.sin(gameTime * 3 + x * 2 + y * 1.5) * 0.4;
+          let g = Math.floor(180 + crystalBright * 75);
+          ctx.fillStyle = `rgb(0, ${g}, 30)`;
+          // Multiple crystals
+          for (let i = 0; i < 3; i++) {
+            let cx = px + 5 + ((x * 13 + i * 11) % (TILE - 10));
+            let cy = py + 8 + ((y * 7 + i * 13) % (TILE - 14));
+            let ch = 6 + Math.sin(gameTime * 2.5 + i + x + y) * 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + 3, cy - ch);
+            ctx.lineTo(cx + 6, cy);
+            ctx.fill();
+          }
+          // Glow
+          ctx.fillStyle = `rgba(0, 255, 50, ${0.08 + crystalBright * 0.06})`;
+          ctx.fillRect(px, py, TILE, TILE);
+          break;
+        case TERRAIN.ROAD:
+          ctx.fillStyle = `rgb(${70 + ((x * 3 + y * 5) % 8)}, ${68 + ((x * 7 + y * 3) % 6)}, ${65})`;
+          ctx.fillRect(px, py, TILE, TILE);
+          // Road markings
+          if ((x + y) % 4 === 0) {
+            ctx.fillStyle = 'rgba(200, 200, 100, 0.2)';
+            ctx.fillRect(px + TILE / 2 - 1, py, 2, TILE);
+          }
+          break;
+      }
+
+      // Fog of war
+      if (fogOfWar[y][x] < 1) {
+        let fogAlpha = 1 - fogOfWar[y][x];
+        ctx.fillStyle = `rgba(0, 0, 0, ${Math.max(0.15, fogAlpha * 0.7)})`;
+        ctx.fillRect(px, py, TILE, TILE);
+      }
+
+      // Grid lines (subtle)
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+      ctx.strokeRect(px, py, TILE, TILE);
+    }
+  }
+}
+
+function drawEntities() {
+  // Sort: buildings first, then units
+  let buildings = entities.filter(e => e.entityType === 'building' && e.hp > 0);
+  let units = entities.filter(e => e.entityType === 'unit' && e.alive !== false);
+
+  // Draw buildings
+  buildings.forEach(b => {
+    let baseColor = b.team === 'gdi' ? [200, 170, 50] : [180, 40, 40];
+    let darkColor = b.team === 'gdi' ? [160, 130, 30] : [140, 25, 25];
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(b.x + 3, b.y + 3, b.w, b.h);
+
+    // Main building
+    ctx.fillStyle = `rgb(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]})`;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+
+    // Inner detail
+    ctx.fillStyle = `rgb(${darkColor[0]}, ${darkColor[1]}, ${darkColor[2]})`;
+    ctx.fillRect(b.x + 4, b.y + 4, b.w - 8, b.h - 8);
+
+    // Building-specific details
+    ctx.fillStyle = `rgb(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]})`;
+    switch (b.type) {
+      case 'construction_yard':
+        // Crane
+        ctx.fillRect(b.x + b.w / 2 - 3, b.y + 6, 6, b.h - 12);
+        ctx.fillRect(b.x + 6, b.y + b.h / 2 - 3, b.w - 12, 6);
+        ctx.fillStyle = '#fff';
+        ctx.font = '8px monospace';
+        ctx.fillText('CY', b.x + b.w / 2 - 7, b.y + b.h / 2 + 3);
+        break;
+      case 'power_plant':
+        // Turbine animation
+        let turbAngle = gameTime * 4 + b.animPhase;
+        ctx.save();
+        ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+        for (let i = 0; i < 4; i++) {
+          ctx.rotate(Math.PI / 2);
+          ctx.fillStyle = `rgba(255, 255, 100, 0.7)`;
+          ctx.fillRect(-2, -b.h / 4, 4, b.h / 4);
+        }
+        ctx.rotate(turbAngle);
+        ctx.fillStyle = '#ff0';
+        ctx.fillRect(-1, -12, 2, 24);
+        ctx.fillRect(-12, -1, 24, 2);
+        ctx.restore();
+        ctx.fillStyle = '#fff';
+        ctx.font = '8px monospace';
+        ctx.fillText('PWR', b.x + b.w / 2 - 10, b.y + b.h - 8);
+        break;
+      case 'refinery':
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(b.x + 8, b.y + b.h - 16, b.w - 16, 8);
+        ctx.fillStyle = '#fff';
+        ctx.font = '8px monospace';
+        ctx.fillText('REF', b.x + b.w / 2 - 10, b.y + b.h / 2 + 3);
+        break;
+      case 'barracks':
+        ctx.fillStyle = '#fff';
+        ctx.font = '8px monospace';
+        ctx.fillText('BAR', b.x + b.w / 2 - 10, b.y + b.h / 2 + 3);
+        // Door
+        ctx.fillStyle = `rgb(${darkColor[0] - 30}, ${darkColor[1] - 10}, ${darkColor[2] - 10})`;
+        ctx.fillRect(b.x + b.w / 2 - 5, b.y + b.h - 12, 10, 12);
+        break;
+      case 'weapons_factory':
+        ctx.fillStyle = '#fff';
+        ctx.font = '7px monospace';
+        ctx.fillText('WFAC', b.x + b.w / 2 - 12, b.y + b.h / 2 + 3);
+        // Bay door
+        ctx.fillStyle = `rgb(${darkColor[0] - 30}, ${darkColor[1] - 10}, ${darkColor[2] - 10})`;
+        ctx.fillRect(b.x + b.w / 2 - 10, b.y + b.h - 8, 20, 8);
+        break;
+      case 'guard_tower':
+        // Tower top
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(b.x + b.w / 2 - 2, b.y + 2, 4, 8);
+        ctx.font = '7px monospace';
+        ctx.fillText('GT', b.x + 4, b.y + b.h - 4);
+        break;
+      case 'hand_of_nod':
+        ctx.fillStyle = '#fff';
+        ctx.font = '7px monospace';
+        ctx.fillText('HAND', b.x + b.w / 2 - 12, b.y + b.h / 2 + 3);
+        // Fist icon
+        ctx.fillStyle = '#c00';
+        ctx.beginPath();
+        ctx.arc(b.x + b.w / 2, b.y + 14, 6, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      case 'obelisk':
+        // Obelisk spire
+        ctx.fillStyle = '#f00';
+        ctx.beginPath();
+        ctx.moveTo(b.x + b.w / 2, b.y + 2);
+        ctx.lineTo(b.x + b.w - 4, b.y + b.h - 2);
+        ctx.lineTo(b.x + 4, b.y + b.h - 2);
+        ctx.fill();
+        // Glow at top
+        let glowAlpha = 0.3 + Math.sin(gameTime * 5) * 0.2;
+        ctx.fillStyle = `rgba(255, 0, 0, ${glowAlpha})`;
+        ctx.beginPath();
+        ctx.arc(b.x + b.w / 2, b.y + 4, 4, 0, Math.PI * 2);
+        ctx.fill();
+        // Laser beam
+        if (b.laserEffect) {
+          ctx.strokeStyle = `rgba(255, 0, 0, ${b.laserEffect.timer / 0.5})`;
+          ctx.lineWidth = 3;
+          ctx.shadowColor = '#f00';
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.moveTo(b.laserEffect.x1, b.laserEffect.y1);
+          ctx.lineTo(b.laserEffect.x2, b.laserEffect.y2);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.lineWidth = 1;
+        }
+        break;
+      case 'airstrip':
+        ctx.fillStyle = '#555';
+        ctx.fillRect(b.x + 8, b.y + 4, b.w - 16, b.h - 8);
+        // Runway markings
+        ctx.strokeStyle = '#ff0';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(b.x + b.w / 2, b.y + 4);
+        ctx.lineTo(b.x + b.w / 2, b.y + b.h - 4);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#fff';
+        ctx.font = '7px monospace';
+        ctx.fillText('AIR', b.x + b.w / 2 - 8, b.y + b.h / 2 + 3);
+        break;
+    }
+
+    // Health bar
+    if (b.hp < b.maxHp) {
+      let hpPct = b.hp / b.maxHp;
+      ctx.fillStyle = '#300';
+      ctx.fillRect(b.x, b.y - 6, b.w, 4);
+      ctx.fillStyle = hpPct > 0.5 ? '#0f0' : hpPct > 0.25 ? '#ff0' : '#f00';
+      ctx.fillRect(b.x, b.y - 6, b.w * hpPct, 4);
+    }
+
+    // Selection
+    if (b.selected) {
+      ctx.strokeStyle = '#0f0';
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4);
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+    }
+  });
+
+  // Draw units
+  units.forEach(u => {
+    let color = u.team === 'gdi' ? '#ccaa33' : '#cc3333';
+    let darkColor = u.team === 'gdi' ? '#997722' : '#991111';
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(u.x + 2, u.y + 3, u.size * 0.8, u.size * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Stealth effect
+    let prevAlpha = ctx.globalAlpha;
+    if (u.type === 'stealth_tank') {
+      ctx.globalAlpha = u.stealthAlpha + Math.sin(gameTime * 3) * 0.1;
+    }
+
+    if (u.isInfantry) {
+      // Infantry - small circle
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, u.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = darkColor;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, u.size * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (u.isHarvester) {
+      // Harvester - rectangle
+      ctx.save();
+      ctx.translate(u.x, u.y);
+      ctx.rotate(u.angle);
+      ctx.fillStyle = color;
+      ctx.fillRect(-u.size, -u.size * 0.7, u.size * 2, u.size * 1.4);
+      ctx.fillStyle = darkColor;
+      ctx.fillRect(-u.size + 2, -u.size * 0.5, u.size * 2 - 4, u.size);
+      // Harvest scoop
+      ctx.fillStyle = '#888';
+      ctx.fillRect(u.size - 2, -u.size * 0.4, 4, u.size * 0.8);
+      // Load indicator
+      let loadPct = u.harvestLoad / u.maxHarvestLoad;
+      if (loadPct > 0) {
+        ctx.fillStyle = `rgba(0, 255, 50, ${0.5 + loadPct * 0.5})`;
+        ctx.fillRect(-u.size + 3, -u.size * 0.3, (u.size * 2 - 6) * loadPct, u.size * 0.6);
+      }
+      ctx.restore();
+    } else {
+      // Tank/vehicle body
+      ctx.save();
+      ctx.translate(u.x, u.y);
+      ctx.rotate(u.angle);
+
+      // Tracks
+      ctx.fillStyle = '#444';
+      ctx.fillRect(-u.size, -u.size * 0.85, u.size * 2, u.size * 0.3);
+      ctx.fillRect(-u.size, u.size * 0.55, u.size * 2, u.size * 0.3);
+
+      // Body
+      ctx.fillStyle = color;
+      ctx.fillRect(-u.size * 0.8, -u.size * 0.6, u.size * 1.6, u.size * 1.2);
+
+      // Turret
+      ctx.fillStyle = darkColor;
+      ctx.beginPath();
+      ctx.arc(0, 0, u.size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Barrel
+      ctx.fillStyle = '#666';
+      ctx.fillRect(0, -1.5, u.size * 0.9, 3);
+
+      // Muzzle flash
+      if (u.muzzleFlash > 0) {
+        ctx.fillStyle = `rgba(255, 255, 100, ${u.muzzleFlash * 10})`;
+        ctx.beginPath();
+        ctx.arc(u.size * 0.9, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // Mammoth tank extra detail
+      if (u.type === 'mammoth_tank') {
+        ctx.save();
+        ctx.translate(u.x, u.y);
+        ctx.rotate(u.angle);
+        ctx.fillStyle = '#666';
+        ctx.fillRect(0, -4, u.size * 0.9, 2);
+        ctx.fillRect(0, 2, u.size * 0.9, 2);
+        ctx.restore();
+      }
+
+      // Flame tank glow
+      if (u.type === 'flame_tank') {
+        ctx.fillStyle = `rgba(255, 100, 0, ${0.2 + Math.sin(gameTime * 8) * 0.1})`;
+        ctx.beginPath();
+        ctx.arc(u.x + Math.cos(u.angle) * u.size, u.y + Math.sin(u.angle) * u.size, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.globalAlpha = prevAlpha;
+
+    // Health bar
+    if (u.hp < u.maxHp) {
+      let hpPct = u.hp / u.maxHp;
+      let barW = u.size * 2.5;
+      ctx.fillStyle = '#300';
+      ctx.fillRect(u.x - barW / 2, u.y - u.size - 8, barW, 3);
+      ctx.fillStyle = hpPct > 0.5 ? '#0f0' : hpPct > 0.25 ? '#ff0' : '#f00';
+      ctx.fillRect(u.x - barW / 2, u.y - u.size - 8, barW * hpPct, 3);
+    }
+
+    // Selection box
+    if (u.selected) {
+      ctx.strokeStyle = '#0f0';
+      ctx.setLineDash([3, 2]);
+      ctx.lineWidth = 1.5;
+      let ss = u.size + 4;
+      ctx.strokeRect(u.x - ss, u.y - ss, ss * 2, ss * 2);
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+    }
+  });
+}
+
+function drawProjectiles() {
+  projectiles.forEach(p => {
+    if (p.isFlame) {
+      ctx.fillStyle = `rgba(255, ${100 + Math.random() * 100}, 0, 0.9)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4 + Math.random() * 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#ffff00';
+      ctx.shadowColor = '#ffff00';
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  });
+}
+
+function drawExplosions() {
+  explosions.forEach(e => {
+    let alpha = e.timer / e.maxTimer;
+    let r = e.radius;
+    // Outer ring
+    ctx.strokeStyle = `rgba(255, 100, 0, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // Inner fill
+    ctx.fillStyle = `rgba(255, 200, 50, ${alpha * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    // Core
+    ctx.fillStyle = `rgba(255, 255, 200, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 1;
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.fillStyle = p.color || '#555';
+    ctx.globalAlpha = p.alpha || 1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size || 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+function drawMoveMarkers() {
+  moveMarkers.forEach(m => {
+    let alpha = m.timer / 1.0;
+    ctx.strokeStyle = `rgba(0, 255, 0, ${alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  });
+}
+
+function drawDragBox() {
+  if (dragBox) {
+    ctx.strokeStyle = '#00ff00';
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      Math.min(dragBox.x1, dragBox.x2), Math.min(dragBox.y1, dragBox.y2),
+      Math.abs(dragBox.x2 - dragBox.x1), Math.abs(dragBox.y2 - dragBox.y1)
+    );
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.05)';
+    ctx.fillRect(
+      Math.min(dragBox.x1, dragBox.x2), Math.min(dragBox.y1, dragBox.y2),
+      Math.abs(dragBox.x2 - dragBox.x1), Math.abs(dragBox.y2 - dragBox.y1)
+    );
+    ctx.setLineDash([]);
+  }
+}
+
+// ---- Sidebar ----
+function drawSidebar() {
+  let sx = VIEW_W;
+  // Background
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(sx, 0, SIDEBAR_W, CANVAS_H);
+  ctx.strokeStyle = '#333';
+  ctx.strokeRect(sx, 0, SIDEBAR_W, CANVAS_H);
+
+  // Decorative border
+  ctx.strokeStyle = '#0f0';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(sx + 2, 2, SIDEBAR_W - 4, CANVAS_H - 4);
+
+  let y = 10;
+
+  // Title
+  ctx.fillStyle = '#ffcc00';
+  ctx.font = 'bold 13px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('C&C: TIBERIAN', sx + SIDEBAR_W / 2, y + 12);
+  ctx.fillText('DAWN', sx + SIDEBAR_W / 2, y + 26);
+  ctx.textAlign = 'left';
+  y += 35;
+
+  // Separator
+  ctx.strokeStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(sx + 10, y); ctx.lineTo(sx + SIDEBAR_W - 10, y);
+  ctx.stroke();
+  y += 8;
+
+  // Game clock
+  let mins = Math.floor(gameClock / 60);
+  let secs = Math.floor(gameClock % 60);
+  ctx.fillStyle = '#888';
+  ctx.font = '11px monospace';
+  ctx.fillText(`TIME: ${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`, sx + 10, y + 10);
+  y += 18;
+
+  // Credits
+  ctx.fillStyle = '#0f0';
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText(`CREDITS: $${credits.gdi}`, sx + 10, y + 12);
+  y += 20;
+
+  // Power bar
+  ctx.fillStyle = '#888';
+  ctx.font = '10px monospace';
+  ctx.fillText('POWER', sx + 10, y + 10);
+  let gdiPowerPlants = entities.filter(e => e.team === 'gdi' && e.type === 'power_plant' && e.hp > 0).length;
+  let gdiPowerLevel = gdiPowerPlants > 0 ? 1.0 : 0.2;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(sx + 55, y + 2, 130, 10);
+  ctx.fillStyle = gdiPowerLevel > 0.5 ? '#00cc00' : '#cc0000';
+  ctx.fillRect(sx + 55, y + 2, 130 * gdiPowerLevel, 10);
+  ctx.strokeStyle = '#555';
+  ctx.strokeRect(sx + 55, y + 2, 130, 10);
+  y += 20;
+
+  // Separator
+  ctx.strokeStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(sx + 10, y); ctx.lineTo(sx + SIDEBAR_W - 10, y);
+  ctx.stroke();
+  y += 5;
+
+  // Minimap
+  ctx.fillStyle = '#888';
+  ctx.font = '10px monospace';
+  ctx.fillText('RADAR MAP', sx + 10, y + 10);
+  y += 14;
+
+  let mmX = sx + 10, mmY = y, mmW = SIDEBAR_W - 20, mmH = 80;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(mmX, mmY, mmW, mmH);
+  ctx.strokeStyle = '#333';
+  ctx.strokeRect(mmX, mmY, mmW, mmH);
+
+  // Draw minimap terrain
+  let tileScaleX = mmW / MAP_W, tileScaleY = mmH / MAP_H;
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      let t = map[ty][tx].terrain;
+      if (t === TERRAIN.WATER) ctx.fillStyle = '#224488';
+      else if (t === TERRAIN.TIBERIUM) ctx.fillStyle = '#006600';
+      else if (t === TERRAIN.ROCK) ctx.fillStyle = '#555';
+      else if (t === TERRAIN.ROAD) ctx.fillStyle = '#444';
+      else continue;
+      ctx.fillRect(mmX + tx * tileScaleX, mmY + ty * tileScaleY, Math.ceil(tileScaleX), Math.ceil(tileScaleY));
+    }
+  }
+
+  // Draw entities on minimap
+  entities.forEach(e => {
+    if (!isAlive(e)) return;
+    let ex, ey;
+    if (e.entityType === 'building') { ex = e.x + e.w / 2; ey = e.y + e.h / 2; }
+    else { ex = e.x; ey = e.y; }
+    ctx.fillStyle = e.team === 'gdi' ? '#ffcc00' : '#ff3333';
+    let dotSize = e.entityType === 'building' ? 3 : 1.5;
+    ctx.fillRect(
+      mmX + (ex / MAP_PX_W) * mmW - dotSize / 2,
+      mmY + (ey / MAP_PX_H) * mmH - dotSize / 2,
+      dotSize, dotSize
+    );
+  });
+
+  // Camera viewport on minimap
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(
+    mmX + (camera.x / MAP_PX_W) * mmW,
+    mmY + (camera.y / MAP_PX_H) * mmH,
+    (VIEW_W / MAP_PX_W) * mmW,
+    (VIEW_H / MAP_PX_H) * mmH
+  );
+
+  y += mmH + 8;
+
+  // Separator
+  ctx.strokeStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(sx + 10, y); ctx.lineTo(sx + SIDEBAR_W - 10, y);
+  ctx.stroke();
+  y += 5;
+
+  // Build queue
+  ctx.fillStyle = '#888';
+  ctx.font = '10px monospace';
+  ctx.fillText('BUILD QUEUE', sx + 10, y + 10);
+  y += 16;
+
+  buildQueue.forEach((item, i) => {
+    let btnY = y + i * 28;
+    let isBuilding = buildItem === item;
+    let canAfford = credits.gdi >= item.cost;
+
+    ctx.fillStyle = isBuilding ? '#2a2a00' : '#1a1a1a';
+    ctx.fillRect(sx + 8, btnY, SIDEBAR_W - 16, 24);
+    ctx.strokeStyle = isBuilding ? '#ffcc00' : (canAfford ? '#444' : '#322');
+    ctx.strokeRect(sx + 8, btnY, SIDEBAR_W - 16, 24);
+
+    ctx.fillStyle = canAfford ? '#ccc' : '#666';
+    ctx.font = '10px monospace';
+    ctx.fillText(`${item.name}`, sx + 14, btnY + 10);
+    ctx.fillStyle = canAfford ? '#0c0' : '#600';
+    ctx.fillText(`$${item.cost}`, sx + 14, btnY + 20);
+
+    if (isBuilding) {
+      let pct = buildProgress / item.time;
+      ctx.fillStyle = 'rgba(0, 200, 0, 0.3)';
+      ctx.fillRect(sx + 8, btnY, (SIDEBAR_W - 16) * pct, 24);
+      ctx.fillStyle = '#ffcc00';
+      ctx.font = '9px monospace';
+      ctx.fillText(`${Math.floor(pct * 100)}%`, sx + SIDEBAR_W - 42, btnY + 15);
+    }
+  });
+
+  y += buildQueue.length * 28 + 5;
+
+  // Construction complete flash
+  if (constructionFlash > 0) {
+    ctx.fillStyle = `rgba(255, 204, 0, ${constructionFlash * 0.4})`;
+    ctx.fillRect(sx, 0, SIDEBAR_W, CANVAS_H);
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('CONSTRUCTION', sx + SIDEBAR_W / 2, y + 10);
+    ctx.fillText('COMPLETE', sx + SIDEBAR_W / 2, y + 22);
+    ctx.textAlign = 'left';
+    y += 30;
+  }
+
+  // Separator
+  ctx.strokeStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(sx + 10, y); ctx.lineTo(sx + SIDEBAR_W - 10, y);
+  ctx.stroke();
+  y += 5;
+
+  // Selected unit info
+  if (selectedUnits.length > 0) {
+    let u = selectedUnits[0];
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('SELECTED', sx + 10, y + 12);
+    y += 16;
+
+    ctx.fillStyle = '#ccc';
+    ctx.font = '10px monospace';
+    let typeName = u.type.replace(/_/g, ' ').toUpperCase();
+    ctx.fillText(typeName, sx + 10, y + 10);
+    y += 14;
+
+    if (u.entityType === 'unit') {
+      ctx.fillText(`HP: ${u.hp}/${u.maxHp}`, sx + 10, y + 10);
+      y += 12;
+      if (u.damage > 0) {
+        ctx.fillText(`DMG: ${u.damage}  RNG: ${u.range}`, sx + 10, y + 10);
+        y += 12;
+      }
+      if (u.isHarvester) {
+        ctx.fillText(`LOAD: ${Math.floor(u.harvestLoad)}/${u.maxHarvestLoad}`, sx + 10, y + 10);
+        ctx.fillText(`STATE: ${u.harvestState.toUpperCase()}`, sx + 10, y + 22);
+        y += 26;
+      }
+      ctx.fillText(`SPD: ${u.speed}`, sx + 10, y + 10);
+      y += 12;
+    } else {
+      ctx.fillText(`HP: ${u.hp}/${u.maxHp}`, sx + 10, y + 10);
+      y += 14;
+    }
+
+    if (selectedUnits.length > 1) {
+      ctx.fillStyle = '#888';
+      ctx.fillText(`+${selectedUnits.length - 1} more`, sx + 10, y + 10);
+      y += 14;
+    }
+  }
+
+  // Mode indicator
+  if (attackMoveMode) {
+    ctx.fillStyle = '#ff3333';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('ATTACK MOVE', sx + 10, CANVAS_H - 40);
+  }
+
+  // Controls hint
+  ctx.fillStyle = '#555';
+  ctx.font = '8px monospace';
+  ctx.fillText('WASD:Scroll Click:Sel', sx + 5, CANVAS_H - 24);
+  ctx.fillText('RClick:Move A:Atk Spc:Pause', sx + 5, CANVAS_H - 14);
+  ctx.fillText('1-3:Groups', sx + 5, CANVAS_H - 4);
+}
+
+function drawNotifications() {
+  let ny = 50;
+  notifications.forEach(n => {
+    let alpha = Math.min(1, n.timer);
+    ctx.fillStyle = n.color || '#ffcc00';
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = n.color || '#ffcc00';
+    ctx.shadowBlur = 10;
+    ctx.fillText(n.text, VIEW_W / 2, ny);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 1;
+    ny += 25;
+  });
+}
+
+function drawGameOver() {
+  if (!gameOver) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.fillStyle = gameOverMsg.includes('GDI') ? '#ffcc00' : '#ff3333';
+  ctx.font = 'bold 32px monospace';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = ctx.fillStyle;
+  ctx.shadowBlur = 20;
+  ctx.fillText(gameOverMsg, VIEW_W / 2, VIEW_H / 2 - 20);
+  ctx.fillStyle = '#888';
+  ctx.font = '16px monospace';
+  ctx.fillText('Press R to restart', VIEW_W / 2, VIEW_H / 2 + 20);
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+}
+
+// ---- Input ----
+canvas.addEventListener('mousedown', e => {
+  initAudio();
+  if (!bgMusicPlaying) startBGMusic();
+  let rect = canvas.getBoundingClientRect();
+  let mx = (e.clientX - rect.left) * (CANVAS_W / rect.width);
+  let my = (e.clientY - rect.top) * (CANVAS_H / rect.height);
+
+  if (e.button === 0) { // Left click
+    mouse.down = true;
+
+    // Check minimap click
+    let mmX = VIEW_W + 10, mmY = 107, mmW = SIDEBAR_W - 20, mmH = 80;
+    if (mx >= mmX && mx <= mmX + mmW && my >= mmY && my <= mmY + mmH) {
+      camera.x = ((mx - mmX) / mmW) * MAP_PX_W - VIEW_W / 2;
+      camera.y = ((my - mmY) / mmH) * MAP_PX_H - VIEW_H / 2;
+      camera.x = Math.max(0, Math.min(MAP_PX_W - VIEW_W, camera.x));
+      camera.y = Math.max(0, Math.min(MAP_PX_H - VIEW_H, camera.y));
+      return;
+    }
+
+    // Check build queue click
+    if (mx >= VIEW_W) {
+      let bqStartY = 181;
+      buildQueue.forEach((item, i) => {
+        let btnY = bqStartY + i * 28;
+        if (my >= btnY && my < btnY + 24 && credits.gdi >= item.cost && !buildItem) {
+          buildItem = item;
+          buildProgress = 0;
+          playSound('select');
+        }
+      });
+      return;
+    }
+
+    // World click
+    let worldX = mx + camera.x;
+    let worldY = my + camera.y;
+
+    if (mx < VIEW_W) {
+      dragStart = { x: worldX, y: worldY };
+
+      // Check if clicked on entity
+      let clickedEntity = null;
+
+      // Check units first (they're on top)
+      entities.filter(e => e.entityType === 'unit' && e.alive !== false && e.team === 'gdi').forEach(u => {
+        let d = Math.sqrt((worldX - u.x) ** 2 + (worldY - u.y) ** 2);
+        if (d < u.size + 5) clickedEntity = u;
+      });
+
+      // Check buildings
+      if (!clickedEntity) {
+        entities.filter(e => e.entityType === 'building' && e.hp > 0).forEach(b => {
+          if (worldX >= b.x && worldX <= b.x + b.w && worldY >= b.y && worldY <= b.y + b.h) {
+            clickedEntity = b;
+          }
+        });
+      }
+
+      if (clickedEntity) {
+        if (!e.shiftKey) {
+          selectedUnits.forEach(u => u.selected = false);
+          selectedUnits = [];
+        }
+        clickedEntity.selected = true;
+        selectedUnits.push(clickedEntity);
+        playSound('select');
+      } else if (!e.shiftKey) {
+        selectedUnits.forEach(u => u.selected = false);
+        selectedUnits = [];
+      }
+    }
+  } else if (e.button === 2) { // Right click
+    e.preventDefault();
+    if (mx >= VIEW_W) return;
+    let worldX = mx + camera.x;
+    let worldY = my + camera.y;
+
+    // Check if right-clicked on enemy
+    let targetEnemy = null;
+    entities.filter(e => e.team === 'nod' && isAlive(e)).forEach(ent => {
+      let ex = ent.entityType === 'building' ? ent.x + ent.w / 2 : ent.x;
+      let ey = ent.entityType === 'building' ? ent.y + ent.h / 2 : ent.y;
+      let d = Math.sqrt((worldX - ex) ** 2 + (worldY - ey) ** 2);
+      let hitSize = ent.entityType === 'building' ? Math.max(ent.w, ent.h) / 2 + 10 : ent.size + 10;
+      if (d < hitSize) targetEnemy = ent;
+    });
+
+    let gdiSelectedUnits = selectedUnits.filter(u => u.entityType === 'unit' && u.team === 'gdi');
+    if (gdiSelectedUnits.length > 0) {
+      if (targetEnemy) {
+        // Attack command
+        gdiSelectedUnits.forEach(u => {
+          u.target = targetEnemy;
+          u.targetX = targetCenterX(targetEnemy);
+          u.targetY = targetCenterY(targetEnemy);
+          u.moving = true;
+        });
+        moveMarkers.push({ x: targetCenterX(targetEnemy), y: targetCenterY(targetEnemy), radius: 5, timer: 1.0 });
+      } else {
+        // Move command
+        gdiSelectedUnits.forEach((u, i) => {
+          let offsetX = (i % 3 - 1) * 25;
+          let offsetY = (Math.floor(i / 3) - 1) * 25;
+          u.targetX = worldX + offsetX;
+          u.targetY = worldY + offsetY;
+          u.moving = true;
+          u.target = null;
+          if (attackMoveMode) {
+            // In attack-move, will auto-engage targets along the way
+          }
+        });
+        moveMarkers.push({ x: worldX, y: worldY, radius: 5, timer: 1.0 });
+      }
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  let rect = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - rect.left) * (CANVAS_W / rect.width);
+  mouse.y = (e.clientY - rect.top) * (CANVAS_H / rect.height);
+  mouse.worldX = mouse.x + camera.x;
+  mouse.worldY = mouse.y + camera.y;
+
+  if (mouse.down && dragStart && mouse.x < VIEW_W) {
+    dragBox = {
+      x1: dragStart.x,
+      y1: dragStart.y,
+      x2: mouse.worldX,
+      y2: mouse.worldY
+    };
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (e.button === 0) {
+    mouse.down = false;
+    if (dragBox) {
+      let x1 = Math.min(dragBox.x1, dragBox.x2), y1 = Math.min(dragBox.y1, dragBox.y2);
+      let x2 = Math.max(dragBox.x1, dragBox.x2), y2 = Math.max(dragBox.y1, dragBox.y2);
+      if (Math.abs(x2 - x1) > 10 && Math.abs(y2 - y1) > 10) {
+        if (!e.shiftKey) {
+          selectedUnits.forEach(u => u.selected = false);
+          selectedUnits = [];
+        }
+        entities.filter(u => u.entityType === 'unit' && u.team === 'gdi' && u.alive !== false).forEach(u => {
+          if (u.x >= x1 && u.x <= x2 && u.y >= y1 && u.y <= y2) {
+            u.selected = true;
+            selectedUnits.push(u);
+          }
+        });
+        if (selectedUnits.length > 0) playSound('select');
+      }
+      dragBox = null;
+      dragStart = null;
+    } else {
+      dragStart = null;
+    }
+  }
+});
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  keys[e.code] = true;
+
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    paused = !paused;
+    document.getElementById('pauseOverlay').style.display = paused ? 'flex' : 'none';
+  }
+  if (e.key === 'a' || e.key === 'A') {
+    if (!keys['Control']) {
+      attackMoveMode = !attackMoveMode;
+    }
+  }
+  if (e.key === 'r' || e.key === 'R') {
+    if (gameOver) initGame();
+  }
+  if (e.key === '1' || e.key === '2' || e.key === '3') {
+    let grp = parseInt(e.key);
+    if (e.ctrlKey) {
+      // Assign group
+      unitGroups[grp] = selectedUnits.filter(u => u.entityType === 'unit').map(u => u.id);
+    } else {
+      // Select group
+      selectedUnits.forEach(u => u.selected = false);
+      selectedUnits = [];
+      entities.filter(u => unitGroups[grp].includes(u.id) && u.alive !== false).forEach(u => {
+        u.selected = true;
+        selectedUnits.push(u);
+      });
+      if (selectedUnits.length > 0) playSound('select');
+    }
+  }
+  // Stop command
+  if (e.key === 's' || e.key === 'S') {
+    // Only use as stop if not scrolling (ctrl+s)
+  }
+});
+
+document.addEventListener('keyup', e => {
+  keys[e.key] = false;
+  keys[e.code] = false;
+});
+
+// Mute button
+document.getElementById('muteBtn').addEventListener('click', () => {
+  muted = !muted;
+  document.getElementById('muteBtn').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
+  if (muted) stopBGMusic();
+  else { initAudio(); startBGMusic(); }
+});
+
+// ---- Game Loop ----
+function gameLoop(timestamp) {
+  deltaTime = Math.min(0.05, (timestamp - lastFrameTime) / 1000);
+  lastFrameTime = timestamp;
+  gameTime += deltaTime;
+
+  update();
+  render();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ---- Start ----
+initGame();
+// Initial fog reveal around GDI base
+for (let y = 0; y < 10; y++) for (let x = 0; x < 12; x++) {
+  if (y < MAP_H && x < MAP_W) fogOfWar[y][x] = 1;
+}
+lastFrameTime = performance.now();
+requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>
