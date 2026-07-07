@@ -6,6 +6,7 @@ import { findPath } from './path.js';
 import { weaponData, modifyDamage, WARHEADS } from './data/weapons.js';
 import { statsFor } from './stats.js';
 import { NO_ENTITY } from './world.js';
+import { noteDeath, noteKill } from './victory.js';
 
 const GUARD_SCAN_INTERVAL = 8; // ticks between idle target scans
 const CHASE_REPATH_DIST = 2; // re-path when target strays this far from last goal
@@ -88,7 +89,11 @@ function applyDamage(game, target, weaponId, rawDamage, attackerId) {
       type: 'death', x: target.x, y: target.y, kind: target.kind, entityType: target.type,
     });
     const attacker = get(game.store, attackerId);
-    if (attacker) attacker.kills = (attacker.kills ?? 0) + 1;
+    if (attacker) {
+      attacker.kills = (attacker.kills ?? 0) + 1;
+      noteKill(game, attacker.owner);
+    }
+    noteDeath(game, target);
     despawn(game.store, game.world, target.id);
   }
 }

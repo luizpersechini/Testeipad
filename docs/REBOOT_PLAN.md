@@ -136,7 +136,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 
 ### M7 — Fog of war & win/lose
 - [x] M7.1 `sim/fog.js`: shroud (never seen, black) + fog (seen, dimmed, remembers buildings) per house; sight radii reveal. Render pass + minimap respect it. Tests: reveal math.
-- [ ] M7.2 Victory/defeat: destroy all enemy production structures ⇒ win; lose all yours ⇒ lose. End screen with stats (built/lost/harvested), return to menu.
+- [x] M7.2 Victory/defeat: destroy all enemy production structures ⇒ win; lose all yours ⇒ lose. End screen with stats (built/lost/harvested), return to menu.
 
 ### M8 — Menus & game shell
 - [ ] M8.1 `render/menu.js`: main menu → skirmish setup (faction, color, credits, difficulty, map seed) → game → end screen → menu. Pause (P/Esc). Port look from the old C++ menu design.

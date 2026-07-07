@@ -186,11 +186,36 @@ function render() {
   );
 }
 
+function drawEndScreen() {
+  const won = game.winner === HouseType.GDI;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 52px monospace';
+  ctx.fillStyle = won ? '#ffd24a' : '#d04030';
+  const title = game.winner === -1 ? 'STALEMATE' : won ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED';
+  ctx.fillText(title, canvas.width / 2, 250);
+
+  const stats = game.houses[HouseType.GDI].stats;
+  ctx.font = '18px monospace';
+  ctx.fillStyle = '#cfcfcf';
+  const lines = [
+    `Units built: ${stats.unitsBuilt}    lost: ${stats.unitsLost}`,
+    `Buildings built: ${stats.buildingsBuilt}    lost: ${stats.buildingsLost}`,
+    `Enemies destroyed: ${stats.kills}`,
+    `Tiberium harvested: $${stats.creditsHarvested}`,
+    '',
+    'Reload the page to play again',
+  ];
+  lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, 330 + i * 30));
+  ctx.textAlign = 'left';
+}
+
 function frame(now) {
   accumulator += now - lastTime;
   lastTime = now;
   if (accumulator > 250) accumulator = 250; // background-tab pause guard
-  while (accumulator >= MS_PER_TICK) {
+  while (accumulator >= MS_PER_TICK && game.winner === null) {
     gameTick(game, input.commandQueue.splice(0));
     spawnFromEvents(effects, game.events, game.tick);
     pruneEffects(effects, game.tick);
@@ -199,6 +224,7 @@ function frame(now) {
   updateCamera();
   clampCamera(cam);
   render();
+  if (game.winner !== null) drawEndScreen();
   requestAnimationFrame(frame);
 }
 

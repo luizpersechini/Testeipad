@@ -175,7 +175,11 @@ function thinkProduction(game, ai, mine) {
 
 function thinkArmy(game, ai, mine) {
   const diff = DIFFICULTY[ai.difficulty];
-  if (mine.army.length < diff.waveSize) return;
+  // Attack at full wave size — or impatiently with whatever we have (>= 3)
+  // when the economy can't fund a full wave. Prevents broke-AI stalemates.
+  const impatient = game.tick - ai.lastWaveTick >= diff.waveCooldown * 2
+    && mine.army.length >= 3;
+  if (mine.army.length < diff.waveSize && !impatient) return;
   if (game.tick - ai.lastWaveTick < diff.waveCooldown) return;
   ai.lastWaveTick = game.tick;
   const target = enemyTargetPoint(game, ai.owner);

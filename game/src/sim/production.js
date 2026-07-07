@@ -10,6 +10,7 @@ import { UNIT_TYPES } from './data/units.js';
 import { INFANTRY_TYPES } from './data/infantry.js';
 import { BUILDING_TYPES } from './data/buildings.js';
 import { placeBuilding, canPlaceBuilding } from './placement.js';
+import { noteUnitBuilt } from './victory.js';
 
 export const CATEGORIES = ['buildings', 'infantry', 'units'];
 
@@ -133,6 +134,7 @@ function completeUnit(game, owner, category, q) {
     x: exit.x, y: exit.y, hp: data.hp, facing: 16, // rolls out facing south
   });
   if (id === NO_ENTITY) return false;
+  noteUnitBuilt(game, owner);
   game.events.push({ type: 'unit_ready', unitType: q.type, x: exit.x, y: exit.y, id });
   return true;
 }

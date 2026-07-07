@@ -4,6 +4,7 @@ import { TerrainType } from './constants.js';
 import { idx, inBounds, NO_ENTITY } from './world.js';
 import { spawn, despawn, get, EntityKind } from './entity.js';
 import { buildingData } from './data/buildings.js';
+import { noteBuildingBuilt } from './victory.js';
 
 const ADJACENCY_RANGE = 3; // cells from an existing friendly building
 
@@ -73,6 +74,7 @@ export function placeBuilding(game, owner, type, x, y, opts = {}) {
     kind: EntityKind.BUILDING, type, owner, x, y, hp: data.hp, footprint: data.footprint,
   });
   if (id !== NO_ENTITY) {
+    noteBuildingBuilt(game, owner);
     game.events.push({ type: 'place', x, y, buildingType: type });
     // A refinery ships with a free harvester that goes straight to work,
     // exactly like the original.

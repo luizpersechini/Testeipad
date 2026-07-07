@@ -21,6 +21,7 @@ import {
 } from './production.js';
 import { tickAI } from './ai.js';
 import { createFog, tickFog } from './fog.js';
+import { tickVictory, createStats } from './victory.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -46,11 +47,13 @@ export function createGame(seed, { startingCredits = 5000 } = {}) {
     tick: 0,
     events: [], // per-tick render events (shots, hits, deaths); cleared each tick
     houses: [
-      { credits: startingCredits }, // GDI
-      { credits: startingCredits }, // Nod
+      { credits: startingCredits, stats: createStats() }, // GDI
+      { credits: startingCredits, stats: createStats() }, // Nod
       { credits: 0 }, // Neutral
     ],
     fog: [createFog(world), createFog(world), null], // per-house; neutral sees nothing
+    winner: null, // owner index, -1 for a draw, null while playing
+    participants: new Set(), // houses that fielded a base at some point
   };
 }
 
@@ -221,6 +224,7 @@ export function gameTick(game, commands = []) {
   tickRepairs(game);
   tickAI(game);
   tickFog(game);
+  tickVictory(game);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
     tickCombat(game, e);

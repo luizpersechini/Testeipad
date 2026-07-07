@@ -206,3 +206,15 @@ renderer: black shroud + dim fog veil in draw_map, hidden enemies in draw_entiti
 fogged minimap. Tests: 131 pass (5 new).
 Notes: fog full-recompute is O(entities * sight²) every 5 ticks — cheap. Buildings
 on fogged ground show live hp; original froze last-seen state. Minor fidelity gap.
+
+## 2026-07-07 — M7.2
+Did: sim/victory.js — participants join once they can produce; defeated = no
+production structure and no MCV; last house standing wins (draw = -1); per-house
+stats (built/lost/kills/harvested) hooked into combat/production/placement/economy;
+main.js end screen (MISSION ACCOMPLISHED/FAILED + stats) freezes the sim.
+Fixed a real AI flaw the war test exposed: a broke AI below full wave size would
+stalemate forever — added the impatience rule (attack with >=3 units after 2x wave
+cooldown). Hard-vs-easy AI war now concludes decisively. Tests: 135 pass (4 new).
+M7 milestone complete.
+Notes: AI can still deadlock economically if its harvester dies while credits < 1400
+(cannot rebuild); impatience masks it strategically. Consider sell-to-rebuild later.
