@@ -24,3 +24,8 @@ export function attackMoveCommand(ids, x, y) {
 export function forceAttackCommand(ids, x, y) {
   return { type: 'forceattack', ids: [...ids], x, y };
 }
+
+// Send harvesters mining (they cycle field -> refinery on their own).
+export function harvestCommand(ids) {
+  return { type: 'harvest', ids: [...ids] };
+}

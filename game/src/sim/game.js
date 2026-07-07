@@ -11,6 +11,7 @@ import { statsFor } from './stats.js';
 import {
   tickCombat, orderAttack, orderAttackMove, orderForceAttack,
 } from './combat.js';
+import { tickTiberium, tickHarvester, orderHarvest } from './economy.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -26,7 +27,7 @@ const MAX_FACING_LAG = 4; // may drive while within this many facings of desired
 const REPATH_COOLDOWN = 8; // ticks between re-path attempts when blocked
 const MAX_REPATHS = 3;
 
-export function createGame(seed) {
+export function createGame(seed, { startingCredits = 5000 } = {}) {
   return {
     seed,
     rng: createRng(seed),
@@ -34,6 +35,11 @@ export function createGame(seed) {
     store: createStore(),
     tick: 0,
     events: [], // per-tick render events (shots, hits, deaths); cleared each tick
+    houses: [
+      { credits: startingCredits }, // GDI
+      { credits: startingCredits }, // Nod
+      { credits: 0 }, // Neutral
+    ],
   };
 }
 
@@ -87,6 +93,9 @@ function applyCommand(game, cmd) {
     case 'forceattack':
       for (const id of cmd.ids) orderForceAttack(game, id, cmd.x, cmd.y);
       break;
+    case 'harvest':
+      for (const id of cmd.ids) orderHarvest(game, id);
+      break;
     default:
       break;
   }
@@ -103,7 +112,9 @@ function turnToward(e, desired) {
   return Math.min(diff, SIM_FACINGS - diff);
 }
 
-const MOBILE_STATES = new Set(['moving', 'attacking', 'attackmove']);
+const MOBILE_STATES = new Set([
+  'moving', 'attacking', 'attackmove', 'harvest_seek', 'harvest_return',
+]);
 
 function tickMovement(game, e) {
   // Moves explicit orders, chasing attackers, and attack-movers alike.
@@ -175,9 +186,11 @@ function tickMovement(game, e) {
 export function gameTick(game, commands = []) {
   game.events = [];
   for (const cmd of commands) applyCommand(game, cmd);
+  tickTiberium(game);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
     tickCombat(game, e);
+    tickHarvester(game, e);
   }
   game.tick++;
 }

@@ -117,3 +117,15 @@ clears selection/mode; move orders now cancel combat state. Tests: 84 pass (5 ne
 Notes: splash radius spread/4 is my scaling of the original SpreadFactor (original
 uses it as a falloff divisor, not radius) — feels right, revisit vs COMBAT.CPP
 Explosion_Damage if balance is off. M3 milestone complete.
+
+## 2026-07-07 — M4.1
+Did: sim/economy.js — tiberium growth/spread (every 32 ticks, 24 rng samples: stage++
+or seed a clear neighbor at stage>=6) and the full harvester cycle (seek nearest field,
+1 bail/8 ticks to 28-bail capacity, return to refinery, 20-tick unload -> 700 credits,
+repeat until stripped). game.houses[] with credits added to createGame. harvestCommand.
+Tests: 90 pass (6 new).
+Fixed two real bugs the new tests exposed: (1) rng.int used modulo — an LCG's low bits
+have degenerate periods, so coordinate sampling hit a lattice and growth NEVER fired;
+switched to high-bits scaling. (2) map-gen center clearing broke 180° symmetry (rotation
+center is 31.5, not 32) — made the cleared region a symmetric union.
+Notes: refineries are placeholder 1-cell buildings until M5.1 footprints.

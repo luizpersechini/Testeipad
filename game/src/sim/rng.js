@@ -12,13 +12,15 @@ export function createRng(seed) {
   }
 
   return {
-    // Integer in [0, n)
+    // Integer in [0, n). Uses the high bits: an LCG's low bits have short
+    // periods (the lowest bit just alternates), so modulo would sample a
+    // lattice instead of the whole range.
     int(n) {
-      return nextU32() % n;
+      return (nextU32() / 0x100000000 * n) | 0;
     },
     // Integer in [lo, hi] inclusive
     range(lo, hi) {
-      return lo + (nextU32() % (hi - lo + 1));
+      return lo + ((nextU32() / 0x100000000) * (hi - lo + 1) | 0);
     },
     // Float in [0, 1)
     float() {

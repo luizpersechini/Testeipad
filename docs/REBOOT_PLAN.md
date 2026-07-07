@@ -121,7 +121,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M3.4 Stances/missions: guard (default), attack-move (A+click), force-attack (Ctrl+click), stop (S). Group hotkeys Ctrl+1-9 / 1-9.
 
 ### M4 — Economy
-- [ ] M4.1 Tiberium growth + spread per original logic (slow tick); harvester behavior: seek nearest tiberium, load (bail count), return to refinery, unload → credits. Tests: full harvest cycle yields expected credits deterministically.
+- [x] M4.1 Tiberium growth + spread per original logic (slow tick); harvester behavior: seek nearest tiberium, load (bail count), return to refinery, unload → credits. Tests: full harvest cycle yields expected credits deterministically.
 - [ ] M4.2 Credits + power model on the player house (`sim/economy.js`): power output/drain, low-power effects (slower production, radar off). Sidebar shows credits ticker + power bar.
 
 ### M5 — Buildings & production

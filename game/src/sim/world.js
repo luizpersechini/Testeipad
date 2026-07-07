@@ -125,7 +125,10 @@ export function createWorld(seed, w = MAP_W, h = MAP_H) {
   // the same rng-driven raggedness (stages differ per cell; extent matches).
   const mf = mirror(world, s0.x + fieldOffset, s0.y + fieldOffset);
   paintTiberiumField(world, rng, mf.x, mf.y, 4);
+  // The rotation center is (w-1)/2 = 31.5, so a single square around
+  // (32,32) is not mirror-symmetric; the union with (31,31) is.
   clearArea(world, w >> 1, h >> 1, 3);
+  clearArea(world, (w >> 1) - 1, (h >> 1) - 1, 3);
   paintTiberiumField(world, rng, w >> 1, h >> 1, 3);
 
   return world;
