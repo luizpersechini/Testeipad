@@ -315,3 +315,15 @@ Did: fresh Playwright/Chromium end-to-end run against the finished game: main me
 MISSIONS -> GDI 1 (scripted base renders with scenario credits/build tree, fog,
 minimap entity dots) and menu -> skirmish -> in-game. Zero page exceptions.
 Screenshots refreshed in docs/.
+
+## 2026-07-07 — quality pass (loop wrap-up)
+Did: game/test/architecture.test.js — mechanical enforcement of the iron rules:
+sim/ can never import render//input.js or touch DOM globals, sim/ can never use
+Math.random/Date.now/performance.now, render/ can never import commands.js. All
+pass on first run — the codebase honors its own architecture. Scanned for unused
+exports (all hits were internal-use false positives; no churn). Final suite:
+166 tests pass.
+STATUS: every checkbox in REBOOT_PLAN.md (M0-M10) is complete. The loop's work
+queue is empty. Future direction ideas: bespoke mission objectives/triggers,
+spectator fog toggle for replays, sprite art upgrades, multiplayer over the
+command stream.
