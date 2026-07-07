@@ -309,3 +309,9 @@ Pages; root index.html redirects to game/. README documents enabling Pages
 Notes: deploy is gated on the test job — a red suite never ships. The owner needs
 to merge to main and flip the Pages setting once; after that every merge deploys.
 M10 COMPLETE — every checkbox in the reboot plan is done.
+
+## 2026-07-07 — verification pass
+Did: fresh Playwright/Chromium end-to-end run against the finished game: main menu ->
+MISSIONS -> GDI 1 (scripted base renders with scenario credits/build tree, fog,
+minimap entity dots) and menu -> skirmish -> in-game. Zero page exceptions.
+Screenshots refreshed in docs/.
