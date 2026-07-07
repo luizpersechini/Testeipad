@@ -3,7 +3,7 @@
 
 import { EntityKind, get, spawn, despawn, facingToward } from './entity.js';
 import { findPath } from './path.js';
-import { weaponData, modifyDamage } from './data/weapons.js';
+import { weaponData, modifyDamage, WARHEADS } from './data/weapons.js';
 import { statsFor } from './stats.js';
 import { NO_ENTITY } from './world.js';
 
@@ -46,6 +46,33 @@ export function orderAttack(game, id, targetId) {
   const target = get(game.store, targetId);
   if (!e || !target || !weaponOf(e)) return;
   e.attackTarget = targetId;
+  e.attackGround = null;
+  e.state = 'attacking';
+  e.chaseGoal = null;
+}
+
+// Attack-move: travel toward (x,y), engaging what appears along the way.
+export function orderAttackMove(game, id, x, y) {
+  const e = get(game.store, id);
+  if (!e || !weaponOf(e)) return;
+  e.resumeDest = { x, y };
+  e.attackTarget = null;
+  e.attackGround = null;
+  e.dest = { x, y };
+  e.path = findPath(game.world, e.x, e.y, x, y, {
+    infantry: e.kind === EntityKind.INFANTRY, moverId: id,
+  });
+  e.moveProgress = 0;
+  e.repaths = 0;
+  e.repathCooldown = 0;
+  e.state = 'attackmove';
+}
+
+export function orderForceAttack(game, id, x, y) {
+  const e = get(game.store, id);
+  if (!e || !weaponOf(e)) return;
+  e.attackTarget = null;
+  e.attackGround = { x, y };
   e.state = 'attacking';
   e.chaseGoal = null;
 }
@@ -66,7 +93,8 @@ function applyDamage(game, target, weaponId, rawDamage, attackerId) {
   }
 }
 
-function fireAt(game, e, target, weapon) {
+// target: entity to home on, or null when firing at ground coordinates.
+function fireAt(game, e, target, weapon, groundX, groundY) {
   const stats = statsFor(e);
   e.reload = weapon.rof;
   game.events.push({ type: 'shot', x: e.x, y: e.y, facing: e.facing, weapon: stats.weapon });
@@ -78,24 +106,64 @@ function fireAt(game, e, target, weapon) {
   p.subX = e.subX;
   p.subY = e.subY;
   p.weaponId = stats.weapon;
-  p.targetId = target.id;
+  p.targetId = target ? target.id : null;
+  p.groundTarget = target ? null : { x: groundX, y: groundY };
   p.firedBy = e.id;
 }
 
+// Warhead splash with linear falloff: friendlies included (danger close is
+// real), but never the shooter — point-blank tank fire must not self-destruct.
+function applySplash(game, cx, cy, weaponId, damage, attackerId, excludeId) {
+  const weapon = weaponData(weaponId);
+  const radius = WARHEADS[weapon.warhead].spread / 4;
+  for (const other of game.store.entities.values()) {
+    if (other.id === excludeId || other.id === attackerId) continue;
+    if (!isCombatant(other) || other.hp <= 0) continue;
+    const dx = (other.x + other.subX) - cx;
+    const dy = (other.y + other.subY) - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= radius) {
+      const attenuated = Math.round(damage * (1 - dist / (radius + 0.001)));
+      if (attenuated > 0) applyDamage(game, other, weaponId, attenuated, attackerId);
+    }
+  }
+}
+
+function impact(game, p, cx, cy, directTarget) {
+  const weapon = weaponData(p.weaponId);
+  if (directTarget) {
+    applyDamage(game, directTarget, p.weaponId, weapon.damage, p.firedBy);
+    applySplash(game, cx, cy, p.weaponId, weapon.damage, p.firedBy, directTarget.id);
+  } else {
+    game.events.push({ type: 'hit', x: Math.round(cx), y: Math.round(cy), targetId: null });
+    applySplash(game, cx, cy, p.weaponId, weapon.damage, p.firedBy, NO_ENTITY);
+  }
+  despawn(game.store, game.world, p.id);
+}
+
 function tickProjectile(game, p) {
-  const target = get(game.store, p.targetId);
-  if (!target || target.hp <= 0) {
-    despawn(game.store, game.world, p.id);
-    return;
+  let tx;
+  let ty;
+  let target = null;
+  if (p.groundTarget) {
+    tx = p.groundTarget.x;
+    ty = p.groundTarget.y;
+  } else {
+    target = get(game.store, p.targetId);
+    if (!target || target.hp <= 0) {
+      despawn(game.store, game.world, p.id);
+      return;
+    }
+    tx = target.x + target.subX;
+    ty = target.y + target.subY;
   }
   const weapon = weaponData(p.weaponId);
   const step = weapon.speed / 100; // cells per tick
-  const dx = (target.x + target.subX) - (p.x + p.subX);
-  const dy = (target.y + target.subY) - (p.y + p.subY);
+  const dx = tx - (p.x + p.subX);
+  const dy = ty - (p.y + p.subY);
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist <= step) {
-    applyDamage(game, target, p.weaponId, weapon.damage, p.firedBy);
-    despawn(game.store, game.world, p.id);
+    impact(game, p, tx, ty, target);
     return;
   }
   const nx = p.x + p.subX + (dx / dist) * step;
@@ -137,13 +205,59 @@ export function tickCombat(game, e) {
     return;
   }
 
+  // Attack-move: engage anything sighted while traveling; resume on kill.
+  if (e.state === 'attackmove') {
+    if ((game.tick + e.id) % GUARD_SCAN_INTERVAL === 0) {
+      const stats = statsFor(e);
+      const found = acquireTarget(game, e, stats.sight);
+      if (found) {
+        orderAttack(game, e.id, found.id); // resumeDest survives orderAttack
+        return;
+      }
+    }
+    if (!e.path || e.path.length === 0) {
+      // Arrived (or gave up): stand guard here.
+      e.state = 'idle';
+      e.resumeDest = null;
+    }
+    return;
+  }
+
   if (e.state !== 'attacking') return;
+
+  // Force-attack a ground cell (flame walls, artillery zones).
+  if (e.attackGround) {
+    const g = e.attackGround;
+    const dx = (e.x + e.subX) - g.x;
+    const dy = (e.y + e.subY) - g.y;
+    if (Math.sqrt(dx * dx + dy * dy) <= weapon.range) {
+      e.path = null;
+      e.facing = facingToward(e.x, e.y, g.x, g.y);
+      if (e.reload <= 0) fireAt(game, e, null, weapon, g.x, g.y);
+    } else if (e.kind !== EntityKind.BUILDING) {
+      if (!e.chaseGoal || e.chaseGoal.x !== g.x || e.chaseGoal.y !== g.y) {
+        e.chaseGoal = { x: g.x, y: g.y };
+        e.dest = { x: g.x, y: g.y };
+        e.path = findPath(game.world, e.x, e.y, g.x, g.y, {
+          infantry: e.kind === EntityKind.INFANTRY, moverId: e.id,
+        });
+        e.moveProgress = 0;
+      }
+    }
+    return;
+  }
+
   const target = get(game.store, e.attackTarget);
   if (!target || target.hp <= 0) {
     e.attackTarget = NO_ENTITY;
     e.chaseGoal = null;
     e.path = null;
-    e.state = 'idle';
+    // Kill finished during attack-move: resume the advance.
+    if (e.resumeDest) {
+      orderAttackMove(game, e.id, e.resumeDest.x, e.resumeDest.y);
+    } else {
+      e.state = 'idle';
+    }
     return;
   }
 

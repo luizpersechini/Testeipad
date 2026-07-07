@@ -3,7 +3,9 @@
 
 import { TILE, HouseType } from './sim/constants.js';
 import { EntityKind } from './sim/entity.js';
-import { moveCommand, stopCommand, attackCommand } from './sim/commands.js';
+import {
+  moveCommand, stopCommand, attackCommand, attackMoveCommand, forceAttackCommand,
+} from './sim/commands.js';
 import { screenToWorld, screenToCell } from './render/camera.js';
 import { pointInMinimap } from './render/minimap.js';
 
@@ -12,7 +14,21 @@ export function createInputState() {
     selection: new Set(), // entity ids
     commandQueue: [], // drained by main.js into gameTick
     drag: null, // {x0, y0, x1, y1} in screen px while left button held
+    attackMoveArmed: false, // A pressed; next left-click is attack-move
+    groups: new Map(), // digit -> array of entity ids
   };
+}
+
+// Ctrl+digit stores the current selection; digit recalls it (dead ids drop out).
+export function assignGroup(input, digit) {
+  input.groups.set(digit, [...input.selection]);
+}
+
+export function recallGroup(input, store, digit) {
+  const ids = (input.groups.get(digit) ?? []).filter((id) => store.entities.has(id));
+  input.groups.set(digit, ids);
+  input.selection.clear();
+  for (const id of ids) input.selection.add(id);
 }
 
 function selectable(e, owner) {
@@ -71,9 +87,21 @@ export function wireInput(canvas, input, deps) {
         centerCameraOn(cam, w.x, w.y);
         return;
       }
-      if (p.x < cam.viewW) {
-        input.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+      if (p.x >= cam.viewW) return;
+      if (input.attackMoveArmed && input.selection.size > 0) {
+        // A + click: attack-move to the clicked cell.
+        input.attackMoveArmed = false;
+        const cell = screenToCell(cam, p.x, p.y);
+        input.commandQueue.push(attackMoveCommand([...input.selection], cell.x, cell.y));
+        return;
       }
+      if (e.ctrlKey && input.selection.size > 0) {
+        // Ctrl + click: force-attack the ground.
+        const cell = screenToCell(cam, p.x, p.y);
+        input.commandQueue.push(forceAttackCommand([...input.selection], cell.x, cell.y));
+        return;
+      }
+      input.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
     } else if (e.button === 2 && input.selection.size > 0 && p.x < cam.viewW) {
       // Right-click: attack an enemy under the cursor, otherwise move there.
       const wp = screenToWorld(cam, p.x, p.y);
@@ -119,6 +147,20 @@ export function wireInput(canvas, input, deps) {
   window.addEventListener('keydown', (e) => {
     if (e.key === 's' && input.selection.size > 0) {
       input.commandQueue.push(stopCommand([...input.selection]));
+      input.attackMoveArmed = false;
+    } else if (e.key === 'a' || e.key === 'A') {
+      input.attackMoveArmed = input.selection.size > 0;
+    } else if (e.key === 'Escape') {
+      input.attackMoveArmed = false;
+      input.selection.clear();
+    } else if (e.key >= '1' && e.key <= '9') {
+      const digit = e.key;
+      if (e.ctrlKey) {
+        assignGroup(input, digit);
+        e.preventDefault();
+      } else {
+        recallGroup(input, store, digit);
+      }
     }
   });
 }

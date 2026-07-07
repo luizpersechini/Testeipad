@@ -14,3 +14,13 @@ export function stopCommand(ids) {
 export function attackCommand(ids, targetId) {
   return { type: 'attack', ids: [...ids], targetId };
 }
+
+// Advance toward (x,y), engaging any enemy that comes into sight on the way.
+export function attackMoveCommand(ids, x, y) {
+  return { type: 'attackmove', ids: [...ids], x, y };
+}
+
+// Fire on a ground cell regardless of what is there (flame/artillery work).
+export function forceAttackCommand(ids, x, y) {
+  return { type: 'forceattack', ids: [...ids], x, y };
+}

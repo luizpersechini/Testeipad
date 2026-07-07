@@ -108,3 +108,12 @@ lastAttacker (works beyond sight range — artillery can't shell with impunity);
 right-click on an enemy now issues attack instead of move. Tests: 79 pass (4 new).
 Notes: effects list is unbounded between prunes in huge battles — prune runs per tick
 so it's fine; muzzle uses a dot, not the muzzle_flash.png star (asset hookup = polish).
+
+## 2026-07-07 — M3.4
+Did: attack-move (A+click: engage what you sight, resume advance on kill), force-attack
+ground (Ctrl+click) with warhead splash (linear falloff, radius spread/4 cells,
+friendlies hit, shooter excluded), control groups Ctrl+1-9/1-9 in input.js, Escape
+clears selection/mode; move orders now cancel combat state. Tests: 84 pass (5 new).
+Notes: splash radius spread/4 is my scaling of the original SpreadFactor (original
+uses it as a falloff divisor, not radius) — feels right, revisit vs COMBAT.CPP
+Explosion_Damage if balance is off. M3 milestone complete.

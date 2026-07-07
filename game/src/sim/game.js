@@ -8,7 +8,9 @@ import {
 } from './entity.js';
 import { findPath, cellEnterable } from './path.js';
 import { statsFor } from './stats.js';
-import { tickCombat, orderAttack } from './combat.js';
+import {
+  tickCombat, orderAttack, orderAttackMove, orderForceAttack,
+} from './combat.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -39,6 +41,10 @@ function orderMove(game, id, tx, ty) {
   const e = get(game.store, id);
   if (!e) return;
   if (e.kind !== EntityKind.UNIT && e.kind !== EntityKind.INFANTRY) return;
+  // An explicit move order cancels any combat behavior.
+  e.attackTarget = null;
+  e.attackGround = null;
+  e.resumeDest = null;
   e.dest = { x: tx, y: ty };
   e.path = findPath(game.world, e.x, e.y, tx, ty, {
     infantry: e.kind === EntityKind.INFANTRY,
@@ -62,12 +68,24 @@ function applyCommand(game, cmd) {
           e.path = null;
           e.dest = null;
           e.attackTarget = null;
+          e.attackGround = null;
+          e.resumeDest = null;
           e.state = 'idle';
         }
       }
       break;
     case 'attack':
-      for (const id of cmd.ids) orderAttack(game, id, cmd.targetId);
+      for (const id of cmd.ids) {
+        const e = get(game.store, id);
+        if (e) e.resumeDest = null; // player order overrides attack-move resume
+        orderAttack(game, id, cmd.targetId);
+      }
+      break;
+    case 'attackmove':
+      for (const id of cmd.ids) orderAttackMove(game, id, cmd.x, cmd.y);
+      break;
+    case 'forceattack':
+      for (const id of cmd.ids) orderForceAttack(game, id, cmd.x, cmd.y);
       break;
     default:
       break;
@@ -85,9 +103,11 @@ function turnToward(e, desired) {
   return Math.min(diff, SIM_FACINGS - diff);
 }
 
+const MOBILE_STATES = new Set(['moving', 'attacking', 'attackmove']);
+
 function tickMovement(game, e) {
-  // Moves both explicit move orders and attackers chasing a target.
-  if (e.state !== 'moving' && e.state !== 'attacking') return;
+  // Moves explicit orders, chasing attackers, and attack-movers alike.
+  if (!MOBILE_STATES.has(e.state)) return;
   if (!e.path || e.path.length === 0) return;
 
   const next = e.path[0];
