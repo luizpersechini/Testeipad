@@ -253,7 +253,7 @@ function renderGame(s) {
   const sbx = canvas.width - SIDEBAR_W;
   ctx.fillStyle = '#1e1e1e';
   ctx.fillRect(sbx, 0, SIDEBAR_W, canvas.height);
-  drawMinimap(ctx, s.minimap, game.world, cam, fogMap);
+  drawMinimap(ctx, s.minimap, game.world, cam, fogMap, game.tick, game, player);
   drawPings(ctx, s.feedback, s.minimap, game.world, game.tick);
 
   // Credits ticker (rolls toward the real value like the original).

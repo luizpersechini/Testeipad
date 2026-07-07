@@ -1,8 +1,15 @@
 // Minimap: scaled-down world in the sidebar with the camera rectangle.
 // Layout + coordinate math are pure (node-tested); drawing needs a ctx.
 
-import { TILE, TerrainType } from '../sim/constants.js';
+import { TILE, TerrainType, HouseType } from '../sim/constants.js';
 import { idx } from '../sim/world.js';
+import { EntityKind } from '../sim/entity.js';
+import { entityVisibleTo } from '../sim/fog.js';
+
+const MINIMAP_FACTION = {
+  [HouseType.GDI]: '#e0c060',
+  [HouseType.NOD]: '#d04040',
+};
 
 const MINIMAP_COLORS = {
   [TerrainType.CLEAR]: '#7a6c46',
@@ -39,12 +46,12 @@ export function minimapToWorldPx(layout, world, px, py) {
   };
 }
 
-// fogMap: viewing house's fog array (null = draw everything).
-export function drawMinimap(ctx, layout, world, cam, fogMap = null) {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(layout.x - 2, layout.y - 2, layout.w + 4, layout.h + 4);
+const CACHE_REFRESH_TICKS = 10; // terrain+fog change slowly; entities redraw live
 
-  // Terrain cells; ceil size so scaled cells leave no black seams.
+function renderTerrainCache(cache, layout, world, fogMap) {
+  const ctx = cache.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, cache.width, cache.height);
   const cw = Math.ceil(layout.cellW);
   const ch = Math.ceil(layout.cellH);
   for (let y = 0; y < world.h; y++) {
@@ -54,15 +61,48 @@ export function drawMinimap(ctx, layout, world, cam, fogMap = null) {
       ctx.fillStyle = world.tiberium[i] > 0
         ? MINIMAP_TIBERIUM
         : (MINIMAP_COLORS[world.terrain[i]] ?? '#f0f');
-      ctx.fillRect(
-        layout.x + x * layout.cellW,
-        layout.y + y * layout.cellH,
-        cw, ch,
-      );
+      ctx.fillRect(x * layout.cellW, y * layout.cellH, cw, ch);
       if (fogMap && fogMap[i] === 1) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(layout.x + x * layout.cellW, layout.y + y * layout.cellH, cw, ch);
+        ctx.fillRect(x * layout.cellW, y * layout.cellH, cw, ch);
       }
+    }
+  }
+}
+
+// fogMap: viewing house's fog array (null = draw everything). tick drives the
+// offscreen terrain cache (4096 cells redrawn every 10 ticks, not every frame).
+// game/viewer (optional) add live entity dots filtered by fog.
+export function drawMinimap(ctx, layout, world, cam, fogMap = null, tick = 0, game = null, viewer = null) {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(layout.x - 2, layout.y - 2, layout.w + 4, layout.h + 4);
+
+  if (!layout.cache) {
+    layout.cache = document.createElement('canvas');
+    layout.cache.width = layout.w;
+    layout.cache.height = layout.h;
+    layout.cacheTick = -1;
+  }
+  if (layout.cacheTick === -1 || tick - layout.cacheTick >= CACHE_REFRESH_TICKS) {
+    renderTerrainCache(layout.cache, layout, world, fogMap);
+    layout.cacheTick = tick;
+  }
+  ctx.drawImage(layout.cache, layout.x, layout.y);
+
+  // Live entity dots (cheap: one small rect per visible entity per frame).
+  if (game && viewer !== null) {
+    for (const e of game.store.entities.values()) {
+      if (e.kind === EntityKind.PROJECTILE || e.hp <= 0) continue;
+      if (!entityVisibleTo(game, viewer, e)) continue;
+      ctx.fillStyle = e.owner === viewer ? '#7ce07c'
+        : (MINIMAP_FACTION[e.owner] ?? '#d0d0d0');
+      const [fw, fh] = e.footprint ?? [1, 1];
+      ctx.fillRect(
+        layout.x + e.x * layout.cellW,
+        layout.y + e.y * layout.cellH,
+        Math.max(2, fw * layout.cellW),
+        Math.max(2, fh * layout.cellH),
+      );
     }
   }
 

@@ -255,3 +255,12 @@ fade), screen shake (buildings shake harder, exponential decay, render-only jitt
 still issues orders — decided on mouseup by drag distance). Tests: 152 pass (4 new).
 Notes: unit acknowledgment flashes folded into order markers (rings at the order
 target) rather than per-unit flashes — reads better at RTS zoom.
+
+## 2026-07-07 — M9.3
+Did: perf budget codified as a test — 300 units + 60 buildings converging in battle:
+avg tick 1.5ms (budget 8ms), worst ~9ms only on the 300-simultaneous-pathfind command
+tick. Render side: minimap terrain+fog now cached to an offscreen canvas (redrawn
+every 10 ticks instead of 4096 fillRects/frame) and gained live entity dots (fog-
+filtered, faction-colored). Tests: 153 pass (1 new).
+Notes: sim was already comfortably inside budget — no sim changes needed. If worst-
+case matters later, stagger bulk move-order pathfinding across ticks.
