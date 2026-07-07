@@ -9,7 +9,9 @@ import {
   deployCommand, harvestCommand, buildCommand, cancelBuildCommand, placeCommand,
   sellCommand, repairCommand,
 } from './sim/commands.js';
-import { screenToWorld, screenToCell, centerCameraOn } from './render/camera.js';
+import {
+  screenToWorld, screenToCell, centerCameraOn, clampCamera,
+} from './render/camera.js';
 import { pointInMinimap, minimapToWorldPx } from './render/minimap.js';
 import { hitSidebarItem } from './render/sidebar.js';
 import { BUILDING_TYPES } from './sim/data/buildings.js';
@@ -23,6 +25,7 @@ export function createInputState() {
     groups: new Map(), // digit -> array of entity ids
     placing: null, // {type, footprint} while positioning a ready building
     sidebarItems: [], // refreshed each frame by main.js
+    rightPan: null, // {sx, sy, camX, camY, moved} while right button held
   };
 }
 
@@ -135,27 +138,55 @@ export function wireInput(canvas, shell) {
         return;
       }
       input.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
-    } else if (e.button === 2 && input.placing) {
-      input.placing = null; // right-click cancels placement mode
-    } else if (e.button === 2 && input.selection.size > 0 && p.x < cam.viewW) {
-      // Right-click: attack an enemy under the cursor, otherwise move there.
-      const wp = screenToWorld(cam, p.x, p.y);
-      const hit = pickEntityAt(store, wp.x, wp.y, player);
-      if (hit && hit.owner !== player) {
-        input.commandQueue.push(attackCommand([...input.selection], hit.id));
-      } else {
-        const cell = screenToCell(cam, p.x, p.y);
-        input.commandQueue.push(moveCommand([...input.selection], cell.x, cell.y));
-      }
+    } else if (e.button === 2 && p.x < cam.viewW) {
+      // Right button: drag pans the camera; a clean click issues orders
+      // (decided on mouseup once we know whether it moved).
+      input.rightPan = { sx: p.x, sy: p.y, camX: cam.x, camY: cam.y, moved: false };
     }
   });
 
   canvas.addEventListener('mousemove', (e) => {
-    const input = shell.session?.input;
-    if (input?.drag) {
-      const p = mousePos(e);
+    const s = shell.session;
+    if (!s) return;
+    const { input, cam } = s;
+    const p = mousePos(e);
+    if (input.drag) {
       input.drag.x1 = p.x;
       input.drag.y1 = p.y;
+    }
+    if (input.rightPan) {
+      const dx = p.x - input.rightPan.sx;
+      const dy = p.y - input.rightPan.sy;
+      if (input.rightPan.moved || Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        input.rightPan.moved = true;
+        cam.x = input.rightPan.camX - dx;
+        cam.y = input.rightPan.camY - dy;
+        clampCamera(cam);
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    const s = shell.session;
+    if (!s || e.button !== 2 || !s.input.rightPan) return;
+    const { game, cam, input, player } = s;
+    const pan = input.rightPan;
+    input.rightPan = null;
+    if (pan.moved) return; // it was a camera drag, not an order
+    const p = mousePos(e);
+    if (input.placing) {
+      input.placing = null; // right-click cancels placement mode
+      return;
+    }
+    if (input.selection.size === 0) return;
+    // Clean right-click: attack an enemy under the cursor, otherwise move.
+    const wp = screenToWorld(cam, p.x, p.y);
+    const hit = pickEntityAt(game.store, wp.x, wp.y, player);
+    if (hit && hit.owner !== player) {
+      input.commandQueue.push(attackCommand([...input.selection], hit.id));
+    } else {
+      const cell = screenToCell(cam, p.x, p.y);
+      input.commandQueue.push(moveCommand([...input.selection], cell.x, cell.y));
     }
   });
 

@@ -25,6 +25,10 @@ import {
 import { createInputState, wireInput } from './input.js';
 import { serializeGame, deserializeGame } from './sim/save.js';
 import { createAudio, playForEvents, toggleMute } from './render/audio.js';
+import {
+  createFeedback, markersFromCommands, feedbackFromEvents, pruneFeedback,
+  decayShake, drawMarkers, drawPings,
+} from './render/feedback.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -84,6 +88,7 @@ function startSession(settings) {
     minimap: createMinimapLayout(canvas.width, SIDEBAR_W, world),
     input: createInputState(),
     effects: createEffects(),
+    feedback: createFeedback(),
     shownCredits: settings.credits,
     paused: false,
     accumulator: 0,
@@ -143,6 +148,7 @@ function loadSlot(slot) {
     input: createInputState(),
     effects: createEffects(),
     shownCredits: game.houses[blob.player].credits,
+    feedback: createFeedback(),
     paused: false,
     accumulator: 0,
     toast: { text: `Loaded slot ${slot}`, until: game.tick + 30 },
@@ -223,18 +229,32 @@ function renderGame(s) {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Screen shake from nearby destruction (render-only jitter).
+  decayShake(s.feedback);
+  const shaking = s.feedback.shake > 0;
+  if (shaking) {
+    ctx.save();
+    ctx.translate(
+      (Math.random() - 0.5) * s.feedback.shake,
+      (Math.random() - 0.5) * s.feedback.shake,
+    );
+  }
+
   const fogMap = game.fog[player];
   drawMap(ctx, game.world, cam, registry, fogMap);
   drawEntities(ctx, game.store, cam, registry, input.selection, game.tick, game, player);
   drawProjectiles(ctx, game.store, cam);
   drawEffects(ctx, s.effects, cam, registry, game.tick);
+  drawMarkers(ctx, s.feedback, cam, game.tick);
   drawDragBox(ctx, input.drag);
+  if (shaking) ctx.restore();
 
   // Sidebar panel.
   const sbx = canvas.width - SIDEBAR_W;
   ctx.fillStyle = '#1e1e1e';
   ctx.fillRect(sbx, 0, SIDEBAR_W, canvas.height);
   drawMinimap(ctx, s.minimap, game.world, cam, fogMap);
+  drawPings(ctx, s.feedback, s.minimap, game.world, game.tick);
 
   // Credits ticker (rolls toward the real value like the original).
   const house = game.houses[player];
@@ -352,9 +372,15 @@ function frame(now) {
   if (s.accumulator > 250) s.accumulator = 250; // background-tab pause guard
   while (s.accumulator >= MS_PER_TICK) {
     if (!s.paused && s.game.winner === null) {
-      gameTick(s.game, s.input.commandQueue.splice(0));
+      const commands = s.input.commandQueue.splice(0);
+      markersFromCommands(s.feedback, commands, s.game.tick);
+      gameTick(s.game, commands);
       spawnFromEvents(s.effects, s.game.events, s.game.tick);
       pruneEffects(s.effects, s.game.tick);
+      pruneFeedback(s.feedback, s.game.tick);
+      if (feedbackFromEvents(s.feedback, s.game.events, s.game, s.player, s.game.tick)) {
+        s.toast = { text: 'BASE UNDER ATTACK', until: s.game.tick + 45 };
+      }
       playForEvents(audio, s.game.events);
     }
     s.accumulator -= MS_PER_TICK;

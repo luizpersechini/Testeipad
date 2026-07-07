@@ -246,3 +246,12 @@ gesture), M mute toggle persisted to localStorage. Every weapon maps to a recipe
 (test-enforced). Tests: 148 pass (5 new).
 Notes: all synthesized — zero copyrighted audio. Victory fanfare is a single square
 tone; could be a small melody later.
+
+## 2026-07-07 — M9.2
+Did: render/feedback.js — order markers (green move / red attack rings that expand and
+fade), screen shake (buildings shake harder, exponential decay, render-only jitter),
+"BASE UNDER ATTACK" toast + blinking minimap pings when player buildings take hits
+(throttled to one alert per 10s); right-drag now pans the camera (a clean right-click
+still issues orders — decided on mouseup by drag distance). Tests: 152 pass (4 new).
+Notes: unit acknowledgment flashes folded into order markers (rings at the order
+target) rather than per-unit flashes — reads better at RTS zoom.
