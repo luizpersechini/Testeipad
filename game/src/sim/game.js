@@ -15,6 +15,9 @@ import {
   tickTiberium, tickHarvester, orderHarvest, tickPower,
 } from './economy.js';
 import { deployMcv } from './placement.js';
+import {
+  tickProduction, startProduction, cancelProduction, placeReadyBuilding,
+} from './production.js';
 import { SIM_FACINGS } from './constants.js';
 
 export { statsFor };
@@ -101,6 +104,15 @@ function applyCommand(game, cmd) {
       break;
     case 'deploy':
       for (const id of cmd.ids) deployMcv(game, id);
+      break;
+    case 'build':
+      startProduction(game, cmd.owner, cmd.category, cmd.unitType);
+      break;
+    case 'cancelbuild':
+      cancelProduction(game, cmd.owner, cmd.category);
+      break;
+    case 'placebuilding':
+      placeReadyBuilding(game, cmd.owner, cmd.x, cmd.y);
       break;
     default:
       break;
@@ -194,6 +206,7 @@ export function gameTick(game, commands = []) {
   for (const cmd of commands) applyCommand(game, cmd);
   tickTiberium(game);
   tickPower(game);
+  tickProduction(game);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
     tickCombat(game, e);

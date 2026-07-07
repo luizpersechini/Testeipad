@@ -149,3 +149,12 @@ D hotkey, H hotkey for harvest, buildings render from the buildings sheet scaled
 to footprint. Tests: 102 pass (6 new).
 Notes: building x,y is top-left; combat centerDist treats it as a point — big
 buildings are slightly "closer" on their top-left. Cosmetic for now.
+
+## 2026-07-07 — M5.2
+Did: sim/production.js — availableToBuild (faction + factory + prereq gating), one
+queue per category (buildings/infantry/units), pay-as-you-go cost drain (stalls when
+broke, full refund on cancel), low-power half speed, finished units spawn at a free
+ring cell around their factory, finished buildings wait as 'ready' for placeCommand.
+build/cancelbuild/placebuilding commands wired. Tests: 110 pass (8 new).
+Notes: rally points deferred (plan mentions them in M5.2 — moved to M5.3/M9 polish;
+factory exit search is deterministic ring scan). All 8 first-time-through: zero fails.

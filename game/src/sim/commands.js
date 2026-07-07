@@ -34,3 +34,17 @@ export function harvestCommand(ids) {
 export function deployCommand(ids) {
   return { type: 'deploy', ids: [...ids] };
 }
+
+// Production (owner = house index issuing the order).
+export function buildCommand(owner, category, unitType) {
+  return { type: 'build', owner, category, unitType };
+}
+
+export function cancelBuildCommand(owner, category) {
+  return { type: 'cancelbuild', owner, category };
+}
+
+// Place the finished building at (x, y) top-left.
+export function placeCommand(owner, x, y) {
+  return { type: 'placebuilding', owner, x, y };
+}
