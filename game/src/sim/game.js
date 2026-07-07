@@ -13,6 +13,7 @@ import {
 } from './combat.js';
 import {
   tickTiberium, tickHarvester, orderHarvest, tickPower,
+  sellBuilding, toggleRepair, tickRepairs,
 } from './economy.js';
 import { deployMcv } from './placement.js';
 import {
@@ -114,6 +115,12 @@ function applyCommand(game, cmd) {
     case 'placebuilding':
       placeReadyBuilding(game, cmd.owner, cmd.x, cmd.y);
       break;
+    case 'sell':
+      for (const id of cmd.ids) sellBuilding(game, id);
+      break;
+    case 'repair':
+      for (const id of cmd.ids) toggleRepair(game, id);
+      break;
     default:
       break;
   }
@@ -207,6 +214,7 @@ export function gameTick(game, commands = []) {
   tickTiberium(game);
   tickPower(game);
   tickProduction(game);
+  tickRepairs(game);
   for (const e of game.store.entities.values()) {
     tickMovement(game, e);
     tickCombat(game, e);

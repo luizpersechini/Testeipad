@@ -128,7 +128,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 - [x] M5.1 Buildings as entities with footprints (multi-cell occupancy from BDATA), placement validity (adjacency to existing base, terrain clear), MCV deploy → Construction Yard.
 - [x] M5.2 `sim/production.js`: tech-tree prerequisites (from `engine/game/game_data.cpp` tables), build queue per category (building/infantry/vehicle), cost drain over time (credits tick down during build like original), ready → place building or spawn unit at factory exit w/ rally point.
 - [x] M5.3 `render/sidebar.js`: icon grid from `assets/ui/icon_*.png`, progress overlay clock, click to build, click-ready building → placement ghost (green/red cells). **Playable check: full base-building loop.**
-- [ ] M5.4 Defense structures (guard tower, obelisk-lite, AGT) with turret auto-fire; sell (50% refund) + repair toggle.
+- [x] M5.4 Defense structures (guard tower, obelisk-lite, AGT) with turret auto-fire; sell (50% refund) + repair toggle.
 
 ### M6 — AI opponent
 - [ ] M6.1 `sim/ai.js`: port the state machine design from `engine/game/ai_player.cpp` — build-order phase, economy phase, army phase, attack waves scaling with difficulty; target selection (nearest/weakest). Tests: headless AI-vs-AI game for 5,000 ticks completes without error and both AIs build bases (assert entity counts).

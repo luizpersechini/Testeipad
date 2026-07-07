@@ -6,6 +6,7 @@ import { EntityKind } from './sim/entity.js';
 import {
   moveCommand, stopCommand, attackCommand, attackMoveCommand, forceAttackCommand,
   deployCommand, harvestCommand, buildCommand, cancelBuildCommand, placeCommand,
+  sellCommand, repairCommand,
 } from './sim/commands.js';
 import { hitSidebarItem } from './render/sidebar.js';
 import { BUILDING_TYPES } from './sim/data/buildings.js';
@@ -41,14 +42,15 @@ function selectable(e, owner) {
     && (e.kind === EntityKind.UNIT || e.kind === EntityKind.INFANTRY);
 }
 
-// Entity whose cell contains the world pixel, preferring player-owned.
+// Entity whose footprint contains the world pixel, preferring player-owned.
 export function pickEntityAt(store, worldPxX, worldPxY, owner = HouseType.GDI) {
   const cx = (worldPxX / TILE) | 0;
   const cy = (worldPxY / TILE) | 0;
   let fallback = null;
   for (const e of store.entities.values()) {
     if (e.kind === EntityKind.PROJECTILE) continue;
-    if (e.x === cx && e.y === cy) {
+    const [fw, fh] = e.footprint ?? [1, 1];
+    if (cx >= e.x && cx < e.x + fw && cy >= e.y && cy < e.y + fh) {
       if (e.owner === owner) return e;
       fallback = fallback ?? e;
     }
@@ -159,11 +161,14 @@ export function wireInput(canvas, input, deps) {
     const w = Math.abs(d.x1 - d.x0);
     const h = Math.abs(d.y1 - d.y0);
     if (w < DRAG_THRESHOLD && h < DRAG_THRESHOLD) {
-      // Click select.
+      // Click select: own mobiles and own buildings (for sell/repair).
       const wp = screenToWorld(cam, d.x0, d.y0);
       const hit = pickEntityAt(store, wp.x, wp.y);
       input.selection.clear();
-      if (hit && selectable(hit, HouseType.GDI)) input.selection.add(hit.id);
+      if (hit && hit.owner === HouseType.GDI
+        && (selectable(hit, HouseType.GDI) || hit.kind === EntityKind.BUILDING)) {
+        input.selection.add(hit.id);
+      }
     } else {
       const a = screenToWorld(cam, d.x0, d.y0);
       const b = screenToWorld(cam, d.x1, d.y1);
@@ -181,6 +186,10 @@ export function wireInput(canvas, input, deps) {
       input.commandQueue.push(deployCommand([...input.selection]));
     } else if (e.key === 'h' && input.selection.size > 0) {
       input.commandQueue.push(harvestCommand([...input.selection]));
+    } else if (e.key === 'r' && input.selection.size > 0) {
+      input.commandQueue.push(repairCommand([...input.selection]));
+    } else if (e.key === 'x' && input.selection.size > 0) {
+      input.commandQueue.push(sellCommand([...input.selection]));
     } else if (e.key === 'a' || e.key === 'A') {
       input.attackMoveArmed = input.selection.size > 0;
     } else if (e.key === 'Escape') {

@@ -169,3 +169,12 @@ Tests: 113 pass (3 new). **The full base-building loop is now playable in the br
 harvest -> credits -> build -> place -> produce units -> fight.**
 Notes: single shared 'GDI is the human' assumption baked into input/main — parametrize
 when menus (M8.1) add faction select.
+
+## 2026-07-07 — M5.4
+Did: sell (50% of cost scaled by health, frees footprint) + repair toggle (heals
+4hp/3 ticks, full repair from zero costs half price, pauses when broke, auto-off at
+full) in economy.js; sell/repair commands + X/R hotkeys; buildings click-selectable
+across their whole footprint (pickEntityAt now footprint-aware). Tower auto-fire was
+already live via combat + building weapons (proven in power.test). Tests: 118 pass
+(5 new). M5 milestone complete — the game loop matches original C&C base play.
+Notes: no sell animation / crew ejection (original spawns survivors) — polish.

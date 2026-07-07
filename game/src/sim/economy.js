@@ -4,7 +4,7 @@
 
 import { TerrainType, TIBERIUM_MAX_STAGE } from './constants.js';
 import { idx, inBounds, NO_ENTITY } from './world.js';
-import { get, EntityKind } from './entity.js';
+import { get, despawn, EntityKind } from './entity.js';
 import { findPath } from './path.js';
 import { statsFor } from './stats.js';
 
@@ -68,6 +68,51 @@ export function tickPower(game) {
   }
   for (const house of game.houses) {
     house.lowPower = house.powerDrain > house.powerOutput;
+  }
+}
+
+// ── Sell & repair ────────────────────────────────────────────────────────────
+
+const REPAIR_HP_PER_STEP = 4;
+const REPAIR_STEP_TICKS = 3;
+
+// Selling refunds half the cost, scaled by remaining health (original rule).
+export function sellBuilding(game, id) {
+  const e = get(game.store, id);
+  if (!e || e.kind !== EntityKind.BUILDING) return false;
+  const stats = statsFor(e);
+  const refund = Math.floor((stats.cost / 2) * (e.hp / e.maxHp));
+  const house = game.houses[e.owner];
+  if (house) house.credits += refund;
+  game.events.push({ type: 'sell', x: e.x, y: e.y, refund });
+  despawn(game.store, game.world, id);
+  return true;
+}
+
+export function toggleRepair(game, id) {
+  const e = get(game.store, id);
+  if (!e || e.kind !== EntityKind.BUILDING) return false;
+  e.repairing = !e.repairing;
+  return e.repairing;
+}
+
+// Full repair from zero costs half the building's price.
+export function tickRepairs(game) {
+  if (game.tick % REPAIR_STEP_TICKS !== 0) return;
+  for (const e of game.store.entities.values()) {
+    if (e.kind !== EntityKind.BUILDING || !e.repairing) continue;
+    if (e.hp >= e.maxHp) {
+      e.repairing = false;
+      continue;
+    }
+    const stats = statsFor(e);
+    const hpStep = Math.min(REPAIR_HP_PER_STEP, e.maxHp - e.hp);
+    const cost = (stats.cost / 2) * (hpStep / e.maxHp);
+    const house = game.houses[e.owner];
+    if (!house || house.credits < cost) continue; // broke: pause repairs
+    house.credits -= cost;
+    e.hp += hpStep;
+    if (e.hp >= e.maxHp) e.repairing = false;
   }
 }
 

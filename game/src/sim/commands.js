@@ -48,3 +48,11 @@ export function cancelBuildCommand(owner, category) {
 export function placeCommand(owner, x, y) {
   return { type: 'placebuilding', owner, x, y };
 }
+
+export function sellCommand(ids) {
+  return { type: 'sell', ids: [...ids] };
+}
+
+export function repairCommand(ids) {
+  return { type: 'repair', ids: [...ids] };
+}
