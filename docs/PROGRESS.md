@@ -188,3 +188,12 @@ with a free working harvester like the original (this un-deadlocked the AI econo
 Tests: 123 pass (5 new: AI-vs-AI 5000-tick war, economy end-to-end, determinism).
 Notes: seed-42 run has GDI razing Nod by tick ~5000 — the AI actually plays. Peak-based
 assertions because a losing AI's final base can legitimately be rubble.
+
+## 2026-07-07 — M6.2
+Did: DIFFICULTY tiers exported (wave size/cooldown + incomeMult 0.8/1.0/1.4 as the
+classic AI handicap), income multiplier applied at harvester unload for AI houses only;
+browser game now runs a Nod AI by default (?ai=easy|normal|hard|off). Tests: 126 pass
+(3 new). M6 milestone complete — the browser game is now a real fight.
+Notes: ai.js<->economy.js import cycle resolves cleanly (function bindings, no
+top-level use). Reaction-time knob folded into waveCooldown rather than a separate
+timer.

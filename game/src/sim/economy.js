@@ -7,6 +7,7 @@ import { idx, inBounds, NO_ENTITY } from './world.js';
 import { get, despawn, EntityKind } from './entity.js';
 import { findPath } from './path.js';
 import { statsFor } from './stats.js';
+import { incomeMultiplier } from './ai.js';
 
 export const HARVESTER_CAPACITY = 28; // bails
 export const CREDITS_PER_BAIL = 25;
@@ -223,8 +224,9 @@ export function tickHarvester(game, e) {
     case 'harvest_unload': {
       if (++e.harvestTimer >= UNLOAD_TICKS) {
         const house = game.houses[e.owner];
-        if (house) house.credits += e.bails * CREDITS_PER_BAIL;
-        game.events.push({ type: 'unload', x: e.x, y: e.y, credits: e.bails * CREDITS_PER_BAIL });
+        const earned = Math.round(e.bails * CREDITS_PER_BAIL * incomeMultiplier(game, e.owner));
+        if (house) house.credits += earned;
+        game.events.push({ type: 'unload', x: e.x, y: e.y, credits: earned });
         e.bails = 0;
         e.state = 'harvest_seek';
       }

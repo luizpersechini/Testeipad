@@ -132,7 +132,7 @@ Work top to bottom. `[x]` = done and tested. One task per loop iteration.
 
 ### M6 — AI opponent
 - [x] M6.1 `sim/ai.js`: port the state machine design from `engine/game/ai_player.cpp` — build-order phase, economy phase, army phase, attack waves scaling with difficulty; target selection (nearest/weakest). Tests: headless AI-vs-AI game for 5,000 ticks completes without error and both AIs build bases (assert entity counts).
-- [ ] M6.2 Difficulty settings (easy/normal/hard: income multiplier, wave size, reaction time).
+- [x] M6.2 Difficulty settings (easy/normal/hard: income multiplier, wave size, reaction time).
 
 ### M7 — Fog of war & win/lose
 - [ ] M7.1 `sim/fog.js`: shroud (never seen, black) + fog (seen, dimmed, remembers buildings) per house; sight radii reveal. Render pass + minimap respect it. Tests: reveal math.

@@ -16,11 +16,23 @@ import { BUILDING_TYPES } from './data/buildings.js';
 
 const THINK_INTERVAL = 15; // one decision pass per second
 
-const DIFFICULTY = {
-  easy: { waveSize: 4, waveCooldown: 1800, infantryMix: 0.7 },
-  normal: { waveSize: 7, waveCooldown: 1200, infantryMix: 0.5 },
-  hard: { waveSize: 10, waveCooldown: 700, infantryMix: 0.35 },
+// incomeMult is the classic AI handicap knob: hard AIs squeeze more credits
+// out of every harvester load, easy ones less.
+export const DIFFICULTY = {
+  easy: { waveSize: 4, waveCooldown: 1800, incomeMult: 0.8 },
+  normal: { waveSize: 7, waveCooldown: 1200, incomeMult: 1.0 },
+  hard: { waveSize: 10, waveCooldown: 700, incomeMult: 1.4 },
 };
+
+// The AI controlling `owner`, if any.
+export function aiFor(game, owner) {
+  return game.ais?.find((ai) => ai.owner === owner) ?? null;
+}
+
+export function incomeMultiplier(game, owner) {
+  const ai = aiFor(game, owner);
+  return ai ? DIFFICULTY[ai.difficulty].incomeMult : 1.0;
+}
 
 // Build priorities per faction (first missing one gets built).
 const BUILD_ORDER = {

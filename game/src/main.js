@@ -18,6 +18,7 @@ import {
   createEffects, spawnFromEvents, pruneEffects, drawEffects, drawProjectiles,
 } from './render/draw_effects.js';
 import { createInputState, wireInput } from './input.js';
+import { enableAI } from './sim/ai.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -59,6 +60,12 @@ spawnBase(HouseType.NOD, nodStart, [
   [EntityKind.INFANTRY, 'minigunner', 50],
   [EntityKind.INFANTRY, 'flamethrower', 60],
 ]);
+
+// Nod is AI-controlled. Pick difficulty with ?ai=easy|normal|hard|off.
+const aiSetting = new URLSearchParams(window.location.search).get('ai') ?? 'normal';
+if (aiSetting !== 'off') {
+  enableAI(game, HouseType.NOD, ['easy', 'normal', 'hard'].includes(aiSetting) ? aiSetting : 'normal');
+}
 
 centerCameraOn(cam, gdiStart.x * TILE, gdiStart.y * TILE);
 
