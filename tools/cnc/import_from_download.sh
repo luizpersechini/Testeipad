@@ -46,17 +46,49 @@ python3 -c "import PIL" 2>/dev/null || {
   pip3 install --user pillow || python3 -m pip install --user pillow
 }
 
-# ── 3. Unpack (installers are just archives to 7-zip) ────────────────────────
+# ── 3. Unpack: try 7-zip, then innoextract, then unar ────────────────────────
+# Different community installers use different packers; try them all.
+try_extract() {
+  local target="$1" dest="$2"
+  "$SEVENZ" x -y -o"$dest" "$target" >/dev/null 2>&1 \
+    && [ -n "$(find "$dest" -type f 2>/dev/null | head -1)" ] && return 0
+  if ! command -v innoextract >/dev/null; then
+    say "7-zip couldn't open it; trying innoextract (Inno Setup installers)..."
+    brew install innoextract >/dev/null 2>&1 || true
+  fi
+  command -v innoextract >/dev/null \
+    && innoextract -s -d "$dest" "$target" >/dev/null 2>&1 \
+    && [ -n "$(find "$dest" -type f 2>/dev/null | head -1)" ] && return 0
+  if ! command -v unar >/dev/null; then
+    say "Trying unar (self-extracting archives)..."
+    brew install unar >/dev/null 2>&1 || true
+  fi
+  command -v unar >/dev/null \
+    && unar -quiet -force-overwrite -o "$dest" "$target" >/dev/null 2>&1 \
+    && [ -n "$(find "$dest" -type f 2>/dev/null | head -1)" ] && return 0
+  return 1
+}
+
 WORK=$(mktemp -d /tmp/cnc_import.XXXX)
 if [ -d "$TARGET" ]; then
   WORK="$TARGET"
 else
   say "Unpacking (this can take a minute)..."
-  "$SEVENZ" x -y -o"$WORK" "$TARGET" >/dev/null || true
+  if ! try_extract "$TARGET" "$WORK"; then
+    echo
+    echo "None of the extractors could open this installer:"
+    file "$TARGET" 2>/dev/null || true
+    echo
+    echo "Easiest fix: use the freeware ISO instead (no extraction needed on a Mac):"
+    echo "  1. Download the GDI disc from https://cncnz.com/downloads/tiberian-dawn-downloads/"
+    echo "  2. Double-click the .iso in Finder to mount it"
+    echo "  3. Re-run:  $0 /Volumes/<the mounted disc>   (check the name with: ls /Volumes)"
+    exit 1
+  fi
   # Some releases nest an ISO or a second archive inside; unpack one level deeper.
   find "$WORK" -maxdepth 2 \( -iname "*.iso" -o -iname "*.zip" -o -iname "*.exe" \) 2>/dev/null \
     | head -3 | while read -r inner; do
-      "$SEVENZ" x -y -o"$WORK/inner_$(basename "$inner" | tr -c 'A-Za-z0-9' _)" "$inner" >/dev/null || true
+      try_extract "$inner" "$WORK/inner_$(basename "$inner" | tr -c 'A-Za-z0-9' _)" || true
     done
 fi
 
