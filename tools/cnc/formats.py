@@ -70,7 +70,7 @@ class MixFile:
 
 # ── Format80 (LCW) ───────────────────────────────────────────────────────────
 
-def decode_format80(src: bytes, dest_size: int | None = None) -> bytes:
+def decode_format80(src, dest_size=None):
     """LCW decompression, as used by SHP/TMP/WSA."""
     out = bytearray()
     i = 0
@@ -242,7 +242,7 @@ def load_palette(data: bytes):
 
 
 def frame_to_rgba(frame: bytes, width: int, height: int, palette,
-                  remap: dict | None = None):
+                  remap=None):
     """Palette-indexed frame -> flat RGBA byte list. Index 0 is transparent."""
     out = bytearray(width * height * 4)
     for i, ci in enumerate(frame[:width * height]):
