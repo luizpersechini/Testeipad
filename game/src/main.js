@@ -24,7 +24,9 @@ import {
 import { createInputState, wireInput, wireTouch, canvasPos } from './input.js';
 import { layoutCommandBar, drawCommandBar } from './render/touchbar.js';
 import { serializeGame, deserializeGame } from './sim/save.js';
-import { createAudio, playForEvents, toggleMute, resumeAudio } from './render/audio.js';
+import {
+  createAudio, playForEvents, toggleMute, resumeAudio, attachRegistry,
+} from './render/audio.js';
 import { createScenarioGame } from './sim/scenarios.js';
 import { createSkirmishGame } from './sim/setup.js';
 import {
@@ -44,6 +46,7 @@ const SIDEBAR_W = 200;
 let registry = null; // assets may still be loading; draw code falls back to rects
 loadAssets().then((r) => {
   registry = r;
+  attachRegistry(audio, r);
   if (r.missing.length) console.warn('Missing assets (using fallbacks):', r.missing);
 });
 

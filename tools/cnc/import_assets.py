@@ -23,7 +23,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from formats import MixFile, ShpFile, load_palette, frame_to_rgba  # noqa: E402
+from formats import MixFile, ShpFile, TmpFile, load_palette, frame_to_rgba  # noqa: E402
 
 try:
     from PIL import Image
@@ -94,11 +94,32 @@ BUILDINGS = {
 # (gold by default). Nod's classic scheme remaps them to the red ramp 32..47.
 NOD_REMAP = {176 + i: 32 + i for i in range(16)}
 
+# Terrain floor templates (temperate theater). Multiple candidates per game
+# terrain type; whichever decode successfully become the tile variants.
+TERRAIN_TEMPLATES = {
+    "clear": ["CLEAR1.TEM"],
+    "water": ["W1.TEM", "W2.TEM"],
+    "rock": ["S09.TEM", "S10.TEM", "S11.TEM", "S12.TEM"],
+    "rough": ["D01.TEM", "D02.TEM", "D03.TEM"],
+}
+# Tiberium overlays and trees ship as SHP-format .TEM terrain objects.
+TIBERIUM_OVERLAYS_SRC = [f"TI{n}.TEM" for n in range(1, 13)]
+TREE_CANDIDATES = ["T01.TEM", "T02.TEM", "T05.TEM", "T08.TEM", "T16.TEM"]
+
 AUDIO_NAMES = [
+    # Unit acknowledgments / EVA-style announcements
     "AWAIT1.AUD", "ACKNO.AUD", "YESSIR1.AUD", "REPORT1.AUD", "RITAWAY.AUD",
-    "UNITRDY.AUD", "CONSTRU2.AUD", "XPLOBIG4.AUD", "XPLOS.AUD", "GUN18.AUD",
-    "TNKFIRE4.AUD", "ROCKET1.AUD", "FLAMER2.AUD", "MGUN11.AUD", "BASEATK1.AUD",
-    "NUYELL1.AUD", "CASHTURN.AUD",
+    "ROGER.AUD", "UGOTIT.AUD", "AFFIRM1.AUD", "MOVOUT1.AUD",
+    "UNITRDY.AUD", "CONSTRU2.AUD", "BLDGING1.AUD", "ONHOLD1.AUD", "CANCLD1.AUD",
+    "BASEATK1.AUD", "BATLCON1.AUD", "UNITLST1.AUD", "NEWOPT1.AUD",
+    "ACCOM1.AUD", "FAIL1.AUD", "REINFOR1.AUD", "LOPOWER1.AUD", "NOPOWER1.AUD",
+    "SILOND1.AUD", "NOCASH1.AUD",
+    # Weapons and destruction
+    "XPLOBIG4.AUD", "XPLOS.AUD", "XPLOSML2.AUD", "GUN18.AUD", "GUN20.AUD",
+    "TNKFIRE4.AUD", "TNKFIRE6.AUD", "ROCKET1.AUD", "ROCKET2.AUD",
+    "FLAMER2.AUD", "MGUN11.AUD", "MGUN2.AUD", "OBELRAY1.AUD", "OBELPOWR.AUD",
+    "NUYELL1.AUD", "NUYELL3.AUD", "NUYELL5.AUD", "YELL1.AUD",
+    "CASHTURN.AUD", "CLICK.AUD", "BUTTON.AUD", "SELL1.AUD", "CRUMBLE.AUD",
 ]
 
 
@@ -201,9 +222,77 @@ def main():
         img.paste(frames_to_sheet(shp, palette, [0], 1, 1, NOD_REMAP), (0, shp.height))
         emit(f"building_{sprite_id}", img, "building_pair", shp.width, shp.height, 1, 2)
 
+    # Terrain floor tiles from TD templates (raw 24x24 tiles, no transparency).
+    print("Terrain:")
+    manifest["tiles"] = {}
+    for terrain_name, candidates in TERRAIN_TEMPLATES.items():
+        variants = []
+        for tmpl_name in candidates:
+            data = read_from_any(mixes, tmpl_name)
+            if not data:
+                continue
+            try:
+                tmp = TmpFile(data)
+            except ValueError as e:
+                print(f"  - {tmpl_name}: {e}")
+                continue
+            for tile in tmp.tiles:
+                if tile is None or len(variants) >= 4:
+                    continue
+                # Opaque floor tiles: index 0 is a real palette color here.
+                rgba = bytearray()
+                for ci in tile:
+                    r, g, b = palette[ci]
+                    rgba += bytes((r, g, b, 255))
+                img = Image.frombytes("RGBA", (tmp.width, tmp.height), bytes(rgba))
+                fname = f"tile_{terrain_name}_{len(variants)}.png"
+                img.save(os.path.join(OUT_DIR, fname))
+                variants.append(fname)
+        if variants:
+            manifest["tiles"][terrain_name] = variants
+            print(f"  + {terrain_name}: {len(variants)} variants")
+        else:
+            print(f"  - {terrain_name}: no usable templates found")
+
+    # Tiberium overlays and a tree (SHP-format .TEM terrain objects).
+    tib_files = []
+    for name in TIBERIUM_OVERLAYS_SRC:
+        data = read_from_any(mixes, name)
+        if not data or len(tib_files) >= 4:
+            continue
+        try:
+            shp = ShpFile(data)
+        except Exception as e:  # noqa: BLE001
+            print(f"  - {name}: not SHP ({e})")
+            continue
+        rgba = frame_to_rgba(shp.frames[0], shp.width, shp.height, palette)
+        img = Image.frombytes("RGBA", (shp.width, shp.height), rgba)
+        fname = f"tiberium_{len(tib_files)}.png"
+        img.save(os.path.join(OUT_DIR, fname))
+        tib_files.append(fname)
+    if tib_files:
+        manifest["tiberium"] = tib_files
+        print(f"  + tiberium: {len(tib_files)} stages")
+
+    for name in TREE_CANDIDATES:
+        data = read_from_any(mixes, name)
+        if not data:
+            continue
+        try:
+            shp = ShpFile(data)
+        except Exception:  # noqa: BLE001
+            continue
+        rgba = frame_to_rgba(shp.frames[0], shp.width, shp.height, palette)
+        Image.frombytes("RGBA", (shp.width, shp.height), rgba) \
+            .save(os.path.join(OUT_DIR, "tile_tree.png"))
+        manifest["tree"] = "tile_tree.png"
+        print(f"  + tree: from {name} ({shp.width}x{shp.height})")
+        break
+
     # Audio / video via ffmpeg (optional).
     ffmpeg = shutil.which("ffmpeg")
     audio_out = os.path.join(OUT_DIR, "audio")
+    manifest["audio"] = []
     if ffmpeg:
         os.makedirs(audio_out, exist_ok=True)
         print("Audio (via ffmpeg):")
@@ -219,6 +308,7 @@ def main():
                                check=False)
             os.remove(raw)
             if r.returncode == 0:
+                manifest["audio"].append(os.path.basename(ogg).rsplit(".", 1)[0])
                 print(f"  + audio/{os.path.basename(ogg)}")
         print("Video: extracting .VQA (convert with: ffmpeg -i file.vqa file.mp4)")
         video_out = os.path.join(OUT_DIR, "video")

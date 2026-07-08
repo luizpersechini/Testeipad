@@ -342,3 +342,17 @@ menu -> skirmish via taps, tap-select shows brackets + full command bar, zero pa
 exceptions; screenshots in docs/shot_ipad_*.png. Tests: 170 pass (4 new).
 Notes: pinch-zoom not implemented (fixed TILE renderer); marquee requires starting
 on empty ground — starting on a unit selects it instead, matching finger accuracy.
+
+## 2026-07-07 — M12.1 + M12.2 (original terrain + sounds)
+Did: TmpFile decoder in formats.py (TD template format verified against OpenRA's
+TmpTDLoader: magic 0x0D1AFFFF, byte index table, raw 24x24 tiles); importer now
+emits terrain tile variants (clear/water/rock/rough), tiberium overlay stages
+(TI*.TEM as SHP), a tree object, and ~45 original sound effects with a manifest
+audio list; game loads tile/tiberium/tree overrides and plays original OGGs via
+lazy WebAudio buffers (synth fallback preserved). First REAL-file contact succeeded
+on the owner's Mac: innoextract cracked the v1.06c installer, 39 MIXes found,
+37 sprite sheets imported and rendering. Python-3.9 compat fixed (no X|None).
+Tests: 170 pass + 22 format self-tests.
+Notes: owner reports "some errors" during import — awaiting the '-' lines to fix
+per-file mappings. Missions (M12.3) and videos (M12.4) queued; videos need the ISO
+or the separate video pack (the 1.06c installer has no MOVIES.MIX).
