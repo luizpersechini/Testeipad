@@ -71,12 +71,68 @@ export function planSounds(events, cap = 5) {
 
 // ── WebAudio (browser only) ──────────────────────────────────────────────────
 
+// Synth sound name -> original sound-effect basename (imported by
+// tools/cnc/import_assets.py into assets/original/audio/*.ogg). When the
+// file exists it plays instead of the synthesized recipe.
+const ORIGINAL_FOR = {
+  shot_cannon: 'tnkfire4',
+  shot_mg: 'mgun11',
+  shot_rocket: 'rocket1',
+  shot_flame: 'flamer2',
+  shot_laser: 'obelray1',
+  explosion: 'xplobig4',
+  hit: 'xplosml2',
+  unit_ready: 'unitrdy',
+  construction_ready: 'constru2',
+  place: 'bldging1',
+  sell: 'cashturn',
+  unload: 'cashturn',
+  victory: 'accom1',
+};
+
 export function createAudio() {
   return {
     ctx: null, // created on first user gesture
     muted: false,
     noiseBuf: null,
+    registry: null, // set via attachRegistry once assets load
+    samples: new Map(), // basename -> AudioBuffer | 'loading' | 'failed'
   };
+}
+
+export function attachRegistry(audio, registry) {
+  audio.registry = registry;
+}
+
+// Play an imported original sample if available; returns false to fall back
+// to synthesis. Buffers are fetched and decoded lazily, once each.
+function playOriginal(audio, name) {
+  const reg = audio.registry;
+  const base = ORIGINAL_FOR[name];
+  if (!reg?.originalAudio?.has(base)) return false;
+  const ctx = ensureContext(audio);
+  if (!ctx) return false;
+  const cached = audio.samples.get(base);
+  if (cached === 'failed') return false;
+  if (cached && cached !== 'loading') {
+    const src = ctx.createBufferSource();
+    src.buffer = cached;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.6;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+    return true;
+  }
+  if (!cached) {
+    audio.samples.set(base, 'loading');
+    fetch(`${reg.originalAudioBase}${base}.ogg`)
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error('http'))))
+      .then((buf) => ctx.decodeAudioData(buf))
+      .then((decoded) => audio.samples.set(base, decoded))
+      .catch(() => audio.samples.set(base, 'failed'));
+  }
+  return true; // swallow this play while loading; next shot uses the buffer
 }
 
 function ensureContext(audio) {
@@ -133,7 +189,9 @@ function playSound(audio, name) {
 
 export function playForEvents(audio, events) {
   if (audio.muted) return;
-  for (const name of planSounds(events)) playSound(audio, name);
+  for (const name of planSounds(events)) {
+    if (!playOriginal(audio, name)) playSound(audio, name);
+  }
 }
 
 export function toggleMute(audio) {

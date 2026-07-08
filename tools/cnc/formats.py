@@ -253,3 +253,40 @@ def frame_to_rgba(frame: bytes, width: int, height: int, palette,
         r, g, b = palette[ci]
         out[i * 4:i * 4 + 4] = bytes((r, g, b, 255))
     return bytes(out)
+
+
+# ── TMP (TD terrain templates) ───────────────────────────────────────────────
+
+class TmpFile:
+    """TD terrain template (.TEM/.DES/.WIN): fixed-size raw 8-bit tiles.
+
+    Header (per XCC/OpenRA): u16 width, u16 height, u16 count, u16 allocated,
+    u32 size, u32 img_start, u32 zero, u32 magic 0x0D1AFFFF, u32 index_end,
+    u32 zero2, u32 index_start. The index table holds one byte per tile;
+    0xFF marks an empty slot, otherwise it is the image number whose pixels
+    live at img_start + n * width * height.
+    """
+
+    MAGIC = 0x0D1AFFFF
+
+    def __init__(self, data: bytes):
+        (self.width, self.height, self.count, _alloc) = struct.unpack_from("<4H", data, 0)
+        (_size, img_start, _zero, magic, index_end, _zero2, index_start) = \
+            struct.unpack_from("<7I", data, 8)
+        if magic != self.MAGIC:
+            raise ValueError(f"not a TD template (magic 0x{magic:08X}, "
+                             f"header {data[:36].hex()})")
+        tile_bytes = self.width * self.height
+        self.tiles = []  # bytes per tile, or None for empty slots
+        for i in range(index_end - index_start):
+            n = data[index_start + i]
+            if n == 0xFF:
+                self.tiles.append(None)
+            else:
+                off = img_start + n * tile_bytes
+                self.tiles.append(data[off:off + tile_bytes])
+
+    @classmethod
+    def open(cls, path):
+        with open(path, "rb") as f:
+            return cls(f.read())

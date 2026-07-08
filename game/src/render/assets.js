@@ -113,6 +113,34 @@ async function loadOriginalOverrides(registry) {
       if (img) registry.sheets[name] = { img, def };
     }));
   }
+  // Terrain floor tiles (up to 4 variants per terrain type).
+  for (const [terrain, files] of Object.entries(manifest.tiles ?? {})) {
+    files.forEach((file, v) => {
+      jobs.push(loadImage(ORIGINAL_BASE + file).then((img) => {
+        if (!img) return;
+        registry.tiles[terrain] = registry.tiles[terrain] ?? [];
+        registry.tiles[terrain][v] = img;
+        // Pad missing variants so cellVariant() always hits something.
+        for (let i = 0; i < TILE_VARIANTS; i++) {
+          registry.tiles[terrain][i] = registry.tiles[terrain][i] ?? img;
+        }
+      }));
+    });
+  }
+  (manifest.tiberium ?? []).forEach((file, v) => {
+    jobs.push(loadImage(ORIGINAL_BASE + file).then((img) => {
+      if (img) registry.tiberium[v] = img;
+    }));
+  });
+  if (manifest.tree) {
+    jobs.push(loadImage(ORIGINAL_BASE + manifest.tree).then((img) => {
+      if (img) registry.tree = img;
+    }));
+  }
+  // Names of converted original sound effects (audio.js resolves and plays).
+  registry.originalAudio = new Set(manifest.audio ?? []);
+  registry.originalAudioBase = `${ORIGINAL_BASE}audio/`;
+
   await Promise.all(jobs);
   registry.usingOriginals = jobs.length > 0;
 }

@@ -48,9 +48,16 @@ export function drawMap(ctx, world, cam, registry, fogMap = null) {
       if (img) {
         ctx.drawImage(img, sx, sy, TILE, TILE);
         if (terrain === TerrainType.TREE) {
-          // Tint stand-in tile until dedicated tree art exists.
-          ctx.fillStyle = 'rgba(30, 80, 20, 0.45)';
-          ctx.fillRect(sx, sy, TILE, TILE);
+          if (registry?.tree) {
+            // Original tree art over a clear floor tile.
+            const base = registry?.tiles?.clear?.[cellVariant(x, y)];
+            if (base) ctx.drawImage(base, sx, sy, TILE, TILE);
+            ctx.drawImage(registry.tree, sx, sy, TILE, TILE);
+          } else {
+            // Tint stand-in tile until dedicated tree art exists.
+            ctx.fillStyle = 'rgba(30, 80, 20, 0.45)';
+            ctx.fillRect(sx, sy, TILE, TILE);
+          }
         }
       } else {
         ctx.fillStyle = TERRAIN_COLORS[terrain] ?? '#f0f';

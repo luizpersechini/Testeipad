@@ -167,3 +167,9 @@ Notes: tiberium spread rate guessed at 1/32 chance per slow-tick; revisit vs OVE
 - [x] M11.1 Responsive fullscreen canvas: fixed 1280×720 internal resolution CSS-scaled to any screen, all pointer input scaled through one helper; PWA manifest + icons + iOS metas so "Add to Home Screen" runs fullscreen landscape.
 - [x] M11.2 Touch controls: tap select/order (C&C-style), one-finger drag box-select, two-finger drag camera pan, long-press attack-move, on-screen command bar (stop/deploy/harvest/repair/sell/pause) replacing hotkeys, WebAudio unlock on first touch.
 - [x] M11.3 Verify with Playwright touch emulation at iPad viewport; document the scheme in README.
+
+### M12 — Full original-asset fidelity (owner-directed, 2026-07-07)
+- [x] M12.1 Terrain art: TD TMP template decoder (CLEAR1/water/rock/rough), tiberium overlays (TI1-TI12), tree terrain objects; game tile/tiberium/tree overrides via manifest.
+- [x] M12.2 Original sound effects: expanded AUD extraction list (~45 effects incl. EVA announcements), lazy WebAudio sample playback with synth fallback.
+- [ ] M12.3 Campaign missions: parse original SCG/SCB mission INIs (STRUCTURES/UNITS/INFANTRY/waypoints) from GENERAL.MIX into the scenario system.
+- [ ] M12.4 Video playback: mission briefing VQA->MP4 shown at scenario start (files already convert when MOVIES.MIX or a video pack is present).
